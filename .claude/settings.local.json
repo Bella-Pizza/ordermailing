@@ -4,7 +4,8 @@
       "Bash(find /c/Users/Elias/Desktop/ordermailing/pages -type f -name *.tsx -o -name *.ts -o -name *.jsx -o -name *.js)",
       "Bash(bun add:*)",
       "Bash(bun install:*)",
-      "Bash(find /c/Users/Elias/Desktop/ordermailing/pages -type f ! -path */node_modules/*)"
+      "Bash(find /c/Users/Elias/Desktop/ordermailing/pages -type f ! -path */node_modules/*)",
+      "mcp__plugin_context-mode_context-mode__ctx_batch_execute"
     ]
   }
 }

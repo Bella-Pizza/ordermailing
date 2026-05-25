@@ -62,6 +62,17 @@
         <h1 class="text-2xl font-bold tracking-tight">{{ selectedSupplier.name }}</h1>
         <p class="text-sm text-muted-foreground">Fill in the quantities for this order.</p>
       </div>
+      <Button
+        variant="outline"
+        size="sm"
+        class="shrink-0 border-purple-300 bg-purple-50 text-purple-700 hover:bg-purple-100 dark:border-purple-700 dark:bg-purple-950/50 dark:text-purple-300 dark:hover:bg-purple-900"
+        :disabled="generating || loadingProducts"
+        @click="generateTemplate"
+      >
+        <Loader2 v-if="generating" class="mr-1.5 size-4 animate-spin" />
+        <Sparkles v-else class="mr-1.5 size-4" />
+        {{ generating ? "Generating…" : "Generate Template" }}
+      </Button>
     </div>
 
     <!-- Loading -->
@@ -262,6 +273,87 @@
     </component>
   </component>
 
+  <!-- ─── AI Suggestion dialog ────────────────────────────────────────────── -->
+  <component :is="isDesktop ? Dialog : Drawer" v-model:open="suggestionOpen">
+    <component :is="isDesktop ? DialogContent : DrawerContent" :class="isDesktop ? 'sm:max-w-lg' : ''">
+      <component :is="isDesktop ? DialogHeader : DrawerHeader" :class="!isDesktop && 'px-6 text-left'">
+        <div class="flex items-center gap-2.5">
+          <div class="flex size-8 shrink-0 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900">
+            <Sparkles class="size-4 text-purple-600 dark:text-purple-400" />
+          </div>
+          <component :is="isDesktop ? DialogTitle : DrawerTitle">AI Order Suggestion</component>
+        </div>
+        <component :is="isDesktop ? DialogDescription : DrawerDescription">
+          Generated based on your past orders and upcoming Belgian holidays.
+        </component>
+      </component>
+
+      <div
+        :class="[
+          'rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200',
+          !isDesktop && 'mx-6',
+        ]"
+      >
+        <p class="font-semibold">⚠️ This is a suggestion only</p>
+        <p class="mt-0.5 text-amber-800 dark:text-amber-300">
+          Quantities are estimated by AI — not guaranteed to be correct. Review carefully. You can edit everything after
+          accepting.
+        </p>
+      </div>
+
+      <div
+        v-if="suggestions.length === 0"
+        :class="['py-6 text-center text-sm text-muted-foreground', !isDesktop && 'px-6']"
+      >
+        No suggestions could be generated for this supplier.
+      </div>
+      <div v-else :class="['overflow-y-auto rounded-md border', isDesktop ? 'max-h-72' : 'mx-6 max-h-[40vh]']">
+        <table class="w-full text-sm">
+          <thead class="sticky top-0 bg-muted/80 backdrop-blur">
+            <tr>
+              <th class="px-3 py-2 text-left font-medium text-muted-foreground">Product</th>
+              <th class="px-3 py-2 text-right font-medium text-muted-foreground">Suggested Qty</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y">
+            <tr v-for="s in suggestions" :key="s.productId" :class="s.note && 'bg-amber-50/60 dark:bg-amber-950/30'">
+              <td class="px-3 py-2">
+                <div class="flex items-center gap-1.5">
+                  <AlertTriangle
+                    v-if="s.note"
+                    class="size-3.5 shrink-0 text-amber-500"
+                  />
+                  <div>
+                    <p class="font-medium">{{ filteredProducts.find((p) => p.id === s.productId)?.internalName ?? s.productId }}</p>
+                    <p v-if="s.note" class="text-xs text-amber-700 dark:text-amber-400">{{ s.note }}</p>
+                  </div>
+                </div>
+              </td>
+              <td class="px-3 py-2 text-right font-semibold tabular-nums text-purple-700 dark:text-purple-300">
+                {{ s.quantity }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <component :is="isDesktop ? DialogFooter : DrawerFooter" :class="['mt-2', !isDesktop && 'px-6 pb-6']">
+        <Button variant="outline" @click="rejectSuggestion">
+          <X class="mr-2 size-4" />
+          Reject
+        </Button>
+        <Button
+          class="bg-purple-600 text-white hover:bg-purple-700 dark:bg-purple-700 dark:hover:bg-purple-600"
+          :disabled="suggestions.length === 0"
+          @click="acceptSuggestion"
+        >
+          <Check class="mr-2 size-4" />
+          Accept Suggestion
+        </Button>
+      </component>
+    </component>
+  </component>
+
   <!-- ─── Success dialog ─────────────────────────────────────────────────── -->
   <Dialog v-model:open="successOpen">
     <DialogContent class="sm:max-w-sm text-center">
@@ -299,6 +391,10 @@ import {
   CloudOff,
   HardDrive,
   Trash2,
+  Sparkles,
+  Check,
+  X,
+  AlertTriangle,
 } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -753,6 +849,64 @@ const confirmLeaveOpen = ref(false);
 const pendingNavUrl = ref<string | null>(null);
 const pendingNavBack = ref(false);
 const pendingNavInternal = ref(false); // true = return to supplier picker (step 1)
+
+// ─── AI template generation ───────────────────────────────────────────────────
+interface AISuggestion {
+  productId: string;
+  quantity: number;
+  note?: string;
+}
+const generating = ref(false);
+const suggestions = ref<AISuggestion[]>([]);
+const suggestionOpen = ref(false);
+
+async function generateTemplate() {
+  if (!selectedSupplier.value || generating.value) return;
+  generating.value = true;
+  try {
+    const res = await apiFetch("/api/orders/generate-template", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        supplierId: selectedSupplier.value.id,
+        products: filteredProducts.value.map((p) => ({
+          id: p.id,
+          internalName: p.internalName,
+          supplierName: p.supplierName,
+          idealStock: p.idealStock,
+          manualOrder: p.manualOrder,
+        })),
+      }),
+    });
+    const data = (await res.json()) as { suggestions: AISuggestion[] };
+    suggestions.value = data.suggestions ?? [];
+  } catch {
+    suggestions.value = [];
+  } finally {
+    generating.value = false;
+    suggestionOpen.value = true;
+  }
+}
+
+function acceptSuggestion() {
+  // Reset all quantities, then apply the AI suggestion as a complete recommendation
+  for (const id of Object.keys(quantities)) quantities[id] = 0;
+  for (const s of suggestions.value) {
+    const product = filteredProducts.value.find((p) => p.id === s.productId);
+    if (!product) continue;
+    // manualOrder & Nolan mode: input = order qty directly
+    // normal mode: input = counted stock = idealStock − orderQty
+    quantities[product.id] =
+      product.manualOrder || nolanMode.value ? s.quantity : Math.max(0, product.idealStock - s.quantity);
+  }
+  if (suggestions.value.length > 0) onQuantityChange();
+  suggestionOpen.value = false;
+}
+
+function rejectSuggestion() {
+  suggestions.value = [];
+  suggestionOpen.value = false;
+}
 
 /** True whenever a draft is in progress (supplier picked and at least one edit made) */
 const hasDraft = computed(() => !!selectedSupplier.value && (dirty.value || !!draftId.value));

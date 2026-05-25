@@ -1,3 +1,4 @@
+import { GoogleGenAI } from "@google/genai";
 import { Hono } from "hono";
 import nodemailer from "nodemailer";
 import * as XLSX from "xlsx";
@@ -101,6 +102,45 @@ import { HTTPException } from "hono/http-exception";
 import { adminAuth, db } from "../firebase-admin";
 import type { Query } from "firebase-admin/firestore";
 
+type ProductInfo = { id: string; internalName: string; supplierName: string; idealStock: number; manualOrder: boolean };
+type PastOrder = { date: string; lines: Array<{ productId: string; name: string; quantity: number }> };
+
+function buildGeminiPrompt(pastOrders: PastOrder[], products: ProductInfo[]): string {
+  const productLines = products
+    .map((p) => `  "${p.id}" (${p.internalName}): max ${p.manualOrder ? "unlimited" : p.idealStock}`)
+    .join("\n");
+
+  const orderHistory =
+    pastOrders.length === 0
+      ? "  No previous orders."
+      : pastOrders
+          .map((o, i) => {
+            const lines =
+              o.lines.length === 0
+                ? "    (empty)"
+                : o.lines.map((l) => `    "${l.productId}": ${l.quantity}`).join("\n");
+            return `  Order ${i + 1} (${o.date}):\n${lines}`;
+          })
+          .join("\n");
+
+  return `
+  You are and expert inventory assistant for a shop. Based on the following product information and past order history, suggest order quantities for each product to restock up to the ideal stock level. Consider trends in the order history, but do not suggest more than the max quantity for each product. If a product is marked as manualOrder, you can suggest any quantity.
+  It is better to order less than too much
+Products (id → max qty):
+${productLines}
+
+Past orders (oldest → newest):
+${orderHistory}
+
+If the suggested quantity for a product is significantly different from its typical past order quantity (more than ~30% above or below the average), add a short "note" field explaining why. Write the note in Dutch (e.g. "Stijgende trend over de laatste 3 bestellingen" or "Ongewoon hoog — controleer voor verzending").
+
+Return ONLY JSON:
+{"suggestions": [{"productId": "<id>", "quantity": <positive integer>, "note": "<optional, only when notable>"}]}
+Only include products where quantity > 0. Never exceed each product's max.
+Keep the products in the same order as the input list.
+`;
+}
+
 const orders = new Hono();
 
 // ─── Auth middleware ──────────────────────────────────────────────────────────
@@ -119,6 +159,65 @@ orders.use("*", async (c, next) => {
     throw new HTTPException(401, { message: "Invalid or expired token" });
   }
   return next();
+});
+
+// ─── POST /api/orders/generate-template ──────────────────────────────────────
+orders.post("/generate-template", async (c) => {
+  const body = await c.req.json<{ supplierId: string; products: ProductInfo[] }>();
+  if (!body.supplierId || !Array.isArray(body.products)) {
+    throw new HTTPException(400, { message: "supplierId and products are required" });
+  }
+
+  const snap = await db
+    .collection("orders")
+    .where("supplierId", "==", body.supplierId)
+    .where("status", "==", "sent")
+    .orderBy("createdAt", "asc")
+    .limit(5)
+    .get();
+
+  const pastOrders: PastOrder[] = snap.docs.map((doc) => {
+    const data = doc.data();
+    return {
+      date: (data.createdAt as string).split("T")[0],
+      lines: ((data.lines ?? []) as any[]).map((l) => ({
+        productId: l.productId as string,
+        name: (l.internalName || l.supplierName) as string,
+        quantity: l.quantity as number,
+      })),
+    };
+  });
+
+  const prompt = buildGeminiPrompt(pastOrders, body.products);
+
+  const geminiKey = process.env.GEMINI_API_KEY;
+  if (!geminiKey) throw new HTTPException(500, { message: "Gemini API key not configured" });
+
+  const ai = new GoogleGenAI({ apiKey: geminiKey });
+  let rawText = "{}";
+  try {
+    const result = await ai.models.generateContent({
+      model: "gemini-3.1-flash-lite",
+      contents: prompt,
+      config: { responseMimeType: "application/json" },
+    });
+    rawText = result.text ?? "{}";
+  } catch (err) {
+    console.error("Gemini SDK error:", err);
+    throw new HTTPException(502, { message: "AI service error" });
+  }
+
+  let suggestions: Array<{ productId: string; quantity: number }> = [];
+  try {
+    const parsed = JSON.parse(rawText);
+    suggestions = ((parsed.suggestions ?? []) as any[]).filter(
+      (s) => typeof s.productId === "string" && typeof s.quantity === "number" && s.quantity > 0,
+    );
+  } catch {
+    throw new HTTPException(502, { message: "Failed to parse AI response" });
+  }
+
+  return c.json({ suggestions });
 });
 
 // ─── POST /api/orders ─────────────────────────────────────────────────────────

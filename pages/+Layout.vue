@@ -122,6 +122,35 @@
       </div>
     </SidebarInset>
 
+    <!-- ─── What's new dialog ──────────────────────────────────────────────── -->
+    <Dialog v-model:open="whatsNewOpen">
+      <DialogContent class="sm:max-w-md">
+        <DialogHeader>
+          <div class="flex items-center gap-2.5">
+            <div class="flex size-8 shrink-0 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900">
+              <Sparkles class="size-4 text-purple-600 dark:text-purple-400" />
+            </div>
+            <DialogTitle>Wat is er nieuw?</DialogTitle>
+          </div>
+          <DialogDescription>Hier zijn de laatste updates in Ordermailing.</DialogDescription>
+        </DialogHeader>
+        <ul class="flex flex-col gap-3 py-1">
+          <li v-for="item in WHATS_NEW_ITEMS" :key="item.title" class="flex gap-3">
+            <div class="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-muted">
+              <component :is="item.icon" class="size-3.5 text-muted-foreground" />
+            </div>
+            <div>
+              <p class="text-sm font-semibold leading-tight">{{ item.title }}</p>
+              <p class="text-sm text-muted-foreground">{{ item.description }}</p>
+            </div>
+          </li>
+        </ul>
+        <DialogFooter>
+          <Button class="w-full" @click="dismissWhatsNew">Begrepen!</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
     <!-- ─── Resume draft dialog ───────────────────────────────────────────── -->
     <Dialog v-model:open="resumeOpen">
       <DialogContent class="sm:max-w-sm">
@@ -161,7 +190,20 @@ import {
   Film,
   PenTool,
   Calendar,
+  Sparkles,
 } from "lucide-vue-next";
+
+// ─── What's new ───────────────────────────────────────────────────────────────
+// Bump this string with every release that has new features to announce.
+const WHATS_NEW_VERSION = "1.1.0";
+const WHATS_NEW_ITEMS = [
+  {
+    icon: Sparkles,
+    title: "AI Bestellingstemplate",
+    description:
+      'Klik op "Generate Template" bij een nieuwe bestelling om automatisch hoeveelheden te laten voorstellen op basis van eerdere bestellingen.',
+  },
+];
 import NotificationSettings from "@/components/NotificationSettings.vue";
 import {
   Sidebar,
@@ -289,12 +331,24 @@ const beheerNav = computed(() => {
   return [];
 });
 
+// ─── What's new ───────────────────────────────────────────────────────────────
+const WHATS_NEW_LS_KEY = "whats_new_dismissed";
+const whatsNewOpen = ref(false);
+
+function dismissWhatsNew() {
+  whatsNewOpen.value = false;
+  localStorage.setItem(WHATS_NEW_LS_KEY, WHATS_NEW_VERSION);
+}
+
 // ─── Resume draft ─────────────────────────────────────────────────────────────
 const resumeOpen = ref(false);
 const resumeSupplierName = ref("");
 
 onMounted(() => {
   initTheme();
+  if (localStorage.getItem(WHATS_NEW_LS_KEY) !== WHATS_NEW_VERSION) {
+    whatsNewOpen.value = true;
+  }
   if (typeof window === "undefined") return;
   if (window.location.pathname === "/orders/new") return;
   const raw = localStorage.getItem("order_draft");
