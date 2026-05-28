@@ -617,7 +617,7 @@ async function syncToServer() {
       await apiFetch(`/api/orders/${draftId.value}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lines }),
+        body: JSON.stringify({ lines, ...(fromAiTemplate.value && { fromAiTemplate: true }) }),
       });
     }
     saveStatus.value = "saved";
@@ -859,6 +859,7 @@ interface AISuggestion {
 const generating = ref(false);
 const suggestions = ref<AISuggestion[]>([]);
 const suggestionOpen = ref(false);
+const fromAiTemplate = ref(false);
 
 async function generateTemplate() {
   if (!selectedSupplier.value || generating.value) return;
@@ -899,6 +900,7 @@ function acceptSuggestion() {
     quantities[product.id] =
       product.manualOrder || nolanMode.value ? s.quantity : Math.max(0, product.idealStock - s.quantity);
   }
+  fromAiTemplate.value = true;
   if (suggestions.value.length > 0) onQuantityChange();
   suggestionOpen.value = false;
 }
@@ -995,7 +997,7 @@ async function submitOrder() {
       await apiFetch(`/api/orders/${draftId.value}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lines: orderLines.value, status: "sent", notes: notes.value }),
+        body: JSON.stringify({ lines: orderLines.value, status: "sent", notes: notes.value, ...(fromAiTemplate.value && { fromAiTemplate: true }) }),
       });
     } else {
       // No draft yet — create directly as sent
@@ -1009,6 +1011,7 @@ async function submitOrder() {
           lines: orderLines.value,
           status: "sent",
           notes: notes.value,
+          ...(fromAiTemplate.value && { fromAiTemplate: true }),
         }),
       });
       const data = (await res.json()) as { id: string };
@@ -1031,6 +1034,7 @@ function newOrder() {
   draftId.value = null;
   saveStatus.value = "idle";
   notes.value = "";
+  fromAiTemplate.value = false;
   stopSyncTimer();
 }
 </script>

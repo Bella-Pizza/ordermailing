@@ -37,7 +37,10 @@
           <div v-for="order in mobileItems" :key="order.id" class="rounded-lg border bg-card p-4 shadow-sm">
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
-                <p class="truncate font-medium">{{ order.supplierName }}</p>
+                <div class="flex items-center gap-1.5">
+                  <p class="truncate font-medium">{{ order.supplierName }}</p>
+                  <Sparkles v-if="order.fromAiTemplate" class="size-3.5 shrink-0 text-purple-500" title="Started from AI template" />
+                </div>
                 <p class="truncate text-xs text-muted-foreground">{{ formatDate(order.createdAt) }}</p>
               </div>
               <StatusBadge :status="order.status" />
@@ -82,7 +85,12 @@
               </thead>
               <tbody class="divide-y">
                 <tr v-for="order in deskItems" :key="order.id" class="hover:bg-muted/30 transition-colors">
-                  <td class="px-4 py-3 font-medium">{{ order.supplierName }}</td>
+                  <td class="px-4 py-3 font-medium">
+                    <div class="flex items-center gap-1.5">
+                      {{ order.supplierName }}
+                      <Sparkles v-if="order.fromAiTemplate" class="size-3.5 shrink-0 text-purple-500" title="Started from AI template" />
+                    </div>
+                  </td>
                   <td class="px-4 py-3"><StatusBadge :status="order.status" /></td>
                   <td class="px-4 py-3 text-muted-foreground">{{ totalItems(order) }}</td>
                   <td class="px-4 py-3 text-muted-foreground">{{ order.createdByName ?? "—" }}</td>
@@ -149,7 +157,7 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, onUnmounted } from "vue";
 import { useMediaQuery } from "@vueuse/core";
-import { PlusCircle, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight } from "lucide-vue-next";
+import { PlusCircle, Pencil, Trash2, Loader2, ChevronLeft, ChevronRight, Sparkles } from "lucide-vue-next";
 import TopLoader from "@/components/ui/top-loader/TopLoader.vue";
 import { Button } from "@/components/ui/button";
 import {
@@ -191,6 +199,7 @@ interface Order {
   createdByName?: string;
   createdAt: string;
   updatedAt?: string;
+  fromAiTemplate?: boolean;
 }
 interface PageResult {
   items: Order[];

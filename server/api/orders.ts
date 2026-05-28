@@ -228,6 +228,7 @@ orders.post("/", async (c) => {
     supplierEmail: string;
     status?: string;
     notes?: string;
+    fromAiTemplate?: boolean;
     lines: Array<{
       productId: string;
       supplierName: string;
@@ -254,6 +255,7 @@ orders.post("/", async (c) => {
     createdByName: userName,
     createdAt: new Date().toISOString(),
     status: body.status ?? "sent",
+    ...(body.fromAiTemplate && { fromAiTemplate: true }),
   });
 
   if ((body.status ?? "sent") === "sent") {
@@ -270,6 +272,7 @@ orders.patch("/:id", async (c) => {
     lines?: Array<{ productId: string; supplierName: string; internalName: string; quantity: number }>;
     status?: string;
     notes?: string;
+    fromAiTemplate?: boolean;
   }>();
 
   const docRef = db.collection("orders").doc(id);
@@ -283,6 +286,7 @@ orders.patch("/:id", async (c) => {
   if (body.lines !== undefined) update.lines = body.lines;
   if (body.status !== undefined) update.status = body.status;
   if (body.notes !== undefined) update.notes = body.notes;
+  if (body.fromAiTemplate) update.fromAiTemplate = true;
 
   await docRef.update(update);
 
