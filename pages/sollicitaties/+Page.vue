@@ -43,7 +43,7 @@
               <div class="font-medium">{{ s.voornaam }} {{ s.naam }}</div>
               <div class="text-xs text-muted-foreground">{{ formatDate(s.createdAt) }}</div>
             </div>
-            <StatusBadge :status="s.status" />
+            <span :class="['inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize', statusBadgeClass(s.status)]">{{ s.status }}</span>
           </div>
           <div class="mt-3 grid grid-cols-2 gap-2 text-sm text-muted-foreground">
             <div class="flex items-center gap-1.5"><Phone class="size-3.5 shrink-0" /> {{ s.gsm }}</div>
@@ -141,42 +141,54 @@
 
         <hr />
 
-        <Section title="Persoonlijke gegevens">
-          <Row label="Naam" :value="`${detail.voornaam} ${detail.naam}`" />
-          <Row label="Geboortedatum" :value="detail.geboortedatum" />
-          <Row label="Geboorteplaats" :value="detail.geboorteplaats" />
-          <Row label="Adres" :value="detail.adres" />
-          <Row label="GSM" :value="detail.gsm" />
-          <Row label="E-mail" :value="detail.email || '—'" />
-          <Row label="Burgerlijke staat" :value="detail.burgerlijkeStaat" />
-        </Section>
-
-        <hr />
-
-        <Section title="Administratieve gegevens">
-          <Row label="Rijksregisternummer" :value="detail.rijksregister" />
-          <Row label="Bankrekeningnummer" :value="detail.bankrekening" />
-        </Section>
-
-        <hr />
-
-        <Section title="Taalkennis">
-          <Row label="Nederlands" :value="detail.kennisNederlands" />
-          <Row label="Frans" :value="detail.kennisFrans" />
-        </Section>
-
-        <hr />
-
-        <Section title="Motivatie & hobby's">
-          <div v-if="detail.hobbys">
-            <p class="text-xs font-medium text-muted-foreground mb-1">Hobby's</p>
-            <p class="text-foreground">{{ detail.hobbys }}</p>
+        <div>
+          <p class="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-3">Persoonlijke gegevens</p>
+          <div class="flex flex-col gap-2">
+            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">Naam</span><span class="text-foreground font-medium">{{ detail.voornaam }} {{ detail.naam }}</span></div>
+            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">Geboortedatum</span><span class="text-foreground font-medium">{{ detail.geboortedatum }}</span></div>
+            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">Geboorteplaats</span><span class="text-foreground font-medium">{{ detail.geboorteplaats }}</span></div>
+            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">Adres</span><span class="text-foreground font-medium">{{ detail.adres }}</span></div>
+            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">GSM</span><span class="text-foreground font-medium">{{ detail.gsm }}</span></div>
+            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">E-mail</span><span class="text-foreground font-medium">{{ detail.email || '—' }}</span></div>
+            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">Burgerlijke staat</span><span class="text-foreground font-medium">{{ detail.burgerlijkeStaat }}</span></div>
           </div>
-          <div>
-            <p class="text-xs font-medium text-muted-foreground mb-1">Motivatie</p>
-            <p class="text-foreground whitespace-pre-line">{{ detail.motivatie }}</p>
+        </div>
+
+        <hr />
+
+        <div>
+          <p class="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-3">Administratieve gegevens</p>
+          <div class="flex flex-col gap-2">
+            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">Rijksregisternummer</span><span class="text-foreground font-medium">{{ detail.rijksregister }}</span></div>
+            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">Bankrekeningnummer</span><span class="text-foreground font-medium">{{ detail.bankrekening }}</span></div>
           </div>
-        </Section>
+        </div>
+
+        <hr />
+
+        <div>
+          <p class="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-3">Taalkennis</p>
+          <div class="flex flex-col gap-2">
+            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">Nederlands</span><span class="text-foreground font-medium">{{ detail.kennisNederlands }}</span></div>
+            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">Frans</span><span class="text-foreground font-medium">{{ detail.kennisFrans }}</span></div>
+          </div>
+        </div>
+
+        <hr />
+
+        <div>
+          <p class="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-3">Motivatie &amp; hobby's</p>
+          <div class="flex flex-col gap-3">
+            <div v-if="detail.hobbys">
+              <p class="text-xs font-medium text-muted-foreground mb-1">Hobby's</p>
+              <p class="text-foreground">{{ detail.hobbys }}</p>
+            </div>
+            <div>
+              <p class="text-xs font-medium text-muted-foreground mb-1">Motivatie</p>
+              <p class="text-foreground whitespace-pre-line">{{ detail.motivatie }}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <DialogFooter class="gap-2">
@@ -245,29 +257,6 @@ interface Sollicitatie {
   createdAt: string;
   status: string;
 }
-
-// ─── Tiny reusable sub-components ─────────────────────────────────────────────
-const Section = {
-  props: ["title"],
-  template: `<div><p class="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-3">{{ title }}</p><div class="flex flex-col gap-2"><slot /></div></div>`,
-};
-const Row = {
-  props: ["label", "value"],
-  template: `<div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">{{ label }}</span><span class="text-foreground font-medium">{{ value }}</span></div>`,
-};
-const StatusBadge = {
-  props: ["status"],
-  setup(props: { status: string }) {
-    const cls = computed(() => {
-      if (props.status === "aangenomen") return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400";
-      if (props.status === "in behandeling") return "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400";
-      if (props.status === "afgewezen") return "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400";
-      return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
-    });
-    return { cls };
-  },
-  template: `<span :class="['inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize', cls]">{{ status }}</span>`,
-};
 
 // ─── State ────────────────────────────────────────────────────────────────────
 const { loading: authLoading } = useAuth();
@@ -351,6 +340,13 @@ function statusClass(status: string) {
   if (status === "in behandeling") return "text-blue-700 border-blue-300";
   if (status === "afgewezen") return "text-red-700 border-red-300";
   return "";
+}
+
+function statusBadgeClass(status: string) {
+  if (status === "aangenomen") return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400";
+  if (status === "in behandeling") return "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400";
+  if (status === "afgewezen") return "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400";
+  return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300";
 }
 
 // ─── Fetch ────────────────────────────────────────────────────────────────────
