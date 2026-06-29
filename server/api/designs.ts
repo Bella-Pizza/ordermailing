@@ -2,9 +2,12 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminAuth, db } from "../firebase-admin";
-import { supabase } from "../supabase";
+import { supabase as _supabase } from "../supabase";
 
 type Env = { Variables: { uid: string } };
+
+// Safe to use after the Supabase availability guard middleware runs.
+const supabase = _supabase!;
 const designs = new Hono<Env>();
 
 const BUCKET = "design-images";
@@ -24,6 +27,14 @@ async function ensureBucket() {
   }
   _bucketReady = true;
 }
+
+// ─── Supabase availability guard ─────────────────────────────────────────────
+designs.use("*", async (c, next) => {
+  if (!supabase) {
+    throw new HTTPException(503, { message: "Design storage is not configured (missing Supabase env keys)" });
+  }
+  return next();
+});
 
 // ─── Auth middleware ──────────────────────────────────────────────────────────
 designs.use("*", async (c, next) => {

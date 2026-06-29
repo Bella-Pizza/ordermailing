@@ -31,10 +31,10 @@
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Algemeen</SidebarGroupLabel>
+          <SidebarGroupLabel>{{ t('nav.general') }}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              <SidebarMenuItem v-for="item in nav" :key="item.label">
+              <SidebarMenuItem v-for="item in nav" :key="item.key">
                 <SidebarMenuButton :tooltip="item.label" as-child>
                   <a :href="item.url">
                     <component :is="item.icon" />
@@ -46,11 +46,11 @@
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup>
-          <SidebarGroupLabel>Beheer</SidebarGroupLabel>
+        <SidebarGroup v-if="beheerNav.length">
+          <SidebarGroupLabel>{{ t('nav.management') }}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              <SidebarMenuItem v-for="item in beheerNav" :key="item.label">
+              <SidebarMenuItem v-for="item in beheerNav" :key="item.key">
                 <SidebarMenuButton :tooltip="item.label" as-child>
                   <a :href="item.url">
                     <component :is="item.icon" />
@@ -69,7 +69,7 @@
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger as-child>
-                <SidebarMenuButton size="lg" tooltip="Account">
+                <SidebarMenuButton size="lg" :tooltip="t('account.myAccount')">
                   <Avatar class="size-8 rounded-lg">
                     <AvatarImage src="" alt="User" />
                     <AvatarFallback class="rounded-lg">{{ avatarInitials }}</AvatarFallback>
@@ -82,24 +82,26 @@
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent side="top" align="start" class="w-56">
-                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuLabel>{{ t('account.myAccount') }}</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
-                  <DropdownMenuItem>
-                    <User class="mr-2 size-4" />
-                    <span>Profile</span>
+                  <DropdownMenuItem as-child>
+                    <a href="/settings" class="flex w-full items-center">
+                      <User class="mr-2 size-4" />
+                      <span>{{ t('account.profile') }}</span>
+                    </a>
                   </DropdownMenuItem>
                   <DropdownMenuItem as-child>
                     <a href="/settings" class="flex w-full items-center">
                       <Settings class="mr-2 size-4" />
-                      <span>Settings</span>
+                      <span>{{ t('account.settings') }}</span>
                     </a>
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem @click="handleSignOut">
                   <LogOut class="mr-2 size-4" />
-                  <span>Log out</span>
+                  <span>{{ t('account.logOut') }}</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -130,23 +132,23 @@
             <div class="flex size-8 shrink-0 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900">
               <Sparkles class="size-4 text-purple-600 dark:text-purple-400" />
             </div>
-            <DialogTitle>Wat is er nieuw?</DialogTitle>
+            <DialogTitle>{{ t('whatsNew.title') }}</DialogTitle>
           </div>
-          <DialogDescription>Hier zijn de laatste updates in Ordermailing.</DialogDescription>
+          <DialogDescription>{{ t('whatsNew.subtitle') }}</DialogDescription>
         </DialogHeader>
         <ul class="flex flex-col gap-3 py-1">
-          <li v-for="item in WHATS_NEW_ITEMS" :key="item.title" class="flex gap-3">
+          <li v-for="item in WHATS_NEW_ITEMS" :key="item.titleKey" class="flex gap-3">
             <div class="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-muted">
               <component :is="item.icon" class="size-3.5 text-muted-foreground" />
             </div>
             <div>
-              <p class="text-sm font-semibold leading-tight">{{ item.title }}</p>
-              <p class="text-sm text-muted-foreground">{{ item.description }}</p>
+              <p class="text-sm font-semibold leading-tight">{{ t(item.titleKey) }}</p>
+              <p class="text-sm text-muted-foreground">{{ t(item.descriptionKey) }}</p>
             </div>
           </li>
         </ul>
         <DialogFooter>
-          <Button class="w-full" @click="dismissWhatsNew">Begrepen!</Button>
+          <Button class="w-full" @click="dismissWhatsNew">{{ t('whatsNew.dismiss') }}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -155,16 +157,14 @@
     <Dialog v-model:open="resumeOpen">
       <DialogContent class="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>Bezig met bestellen</DialogTitle>
+          <DialogTitle>{{ t('resume.title') }}</DialogTitle>
           <DialogDescription>
-            Je hebt een niet-verzonden bestelling voor
-            <strong>{{ resumeSupplierName }}</strong
-            >. Wil je hiermee doorgaan?
+            {{ t('resume.subtitle', { supplier: resumeSupplierName }) }}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter class="flex-col gap-2 sm:flex-row">
-          <Button variant="outline" class="w-full sm:w-auto" @click="discardDraft">Nee, verwijderen</Button>
-          <Button class="w-full sm:w-auto" @click="resumeOrder">Ja, doorgaan</Button>
+          <Button variant="outline" class="w-full sm:w-auto" @click="discardDraft">{{ t('resume.discard') }}</Button>
+          <Button class="w-full sm:w-auto" @click="resumeOrder">{{ t('resume.continue') }}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -200,11 +200,11 @@ const WHATS_NEW_VERSION = "1.1.0";
 const WHATS_NEW_ITEMS = [
   {
     icon: Sparkles,
-    title: "AI Bestellingstemplate",
-    description:
-      'Klik op "Generate Template" bij een nieuwe bestelling om automatisch hoeveelheden te laten voorstellen op basis van eerdere bestellingen.',
+    titleKey: "whatsNew.aiTemplate.title",
+    descriptionKey: "whatsNew.aiTemplate.description",
   },
 ];
+
 import NotificationSettings from "@/components/NotificationSettings.vue";
 import {
   Sidebar,
@@ -247,12 +247,14 @@ import { sentryBrowserConfig } from "../sentry.browser.config";
 import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/apiFetch";
 import { useTheme } from "@/lib/useTheme";
+import { useLocale } from "@/lib/useLocale";
 
 sentryBrowserConfig();
 
 const pageContext = usePageContext();
 const { currentUser, userRole, loading, signOut } = useAuth();
 const { initTheme } = useTheme();
+const { t } = useLocale();
 
 // ─── Auth guard & Role-based Redirection ──────────────────────────────────────
 const PUBLIC_PATHS = ["/login", "/register"];
@@ -270,15 +272,12 @@ watch([loading, userRole], ([isLoading, role]) => {
     return;
   }
 
-  // Role-based redirection logic
-
   if (role === "kassa") {
-    if (path !== "/reservations") {
-      window.location.href = "/reservations";
+    if (path !== "/") {
+      window.location.href = "/";
     }
   } else if (role === "user") {
-    // Prevent standard users from accessing restricted areas (optional but safer)
-    const allowedForUser = ["/", "/orders/new", "/orders", "/reservations", "/automaten", "/settings"];
+    const allowedForUser = ["/", "/orders/new", "/orders", "/settings"];
     const isRestricted = !allowedForUser.some(
       (allowed) => path === allowed || (allowed !== "/" && path.startsWith(allowed)),
     );
@@ -305,31 +304,30 @@ const avatarInitials = computed(() => {
     .join("");
 });
 
-const allNav = [
-  { label: "Home", url: "/", icon: Home },
-  { label: "Create order", url: "/orders/new", icon: PlusCircle },
-  { label: "Orders", url: "/orders", icon: ClipboardList },
-  { label: "Reservaties", url: "/reservations", icon: Calendar },
-  { label: "Sollicitaties", url: "/sollicitaties", icon: FileText },
-  { label: "Suppliers", url: "/suppliers", icon: Truck },
-  { label: "History", url: "/history", icon: History },
-  { label: "Automaten", url: "/automaten", icon: Bot },
-  { label: "Video Creator", url: "/video", icon: Film },
-  { label: "Design Editor", url: "/design", icon: PenTool },
+// ─── Navigation ───────────────────────────────────────────────────────────────
+const allNavDefs = [
+  { key: "home", url: "/", icon: Home },
+  { key: "createOrder", url: "/orders/new", icon: PlusCircle },
+  { key: "orders", url: "/orders", icon: ClipboardList },
+  // { key: "reservations", url: "/reservations", icon: Calendar }, // INACTIVE
+  { key: "applications", url: "/sollicitaties", icon: FileText },
+  { key: "suppliers", url: "/suppliers", icon: Truck },
+  { key: "history", url: "/history", icon: History },
+  // { key: "automaten", url: "/automaten", icon: Bot },             // INACTIVE
+  // { key: "videoCreator", url: "/video", icon: Film },             // INACTIVE
+  // { key: "designEditor", url: "/design", icon: PenTool },         // INACTIVE
 ];
 
 const nav = computed(() => {
   const role = userRole.value?.toLowerCase();
-  if (role === "admin") return allNav;
-  if (role === "kassa") return [{ label: "Reservaties", url: "/reservations", icon: Calendar }];
-
-  // Standard user: Home, Create order, Orders, Reservaties, Automaten
-  const allowedLabels = ["Home", "Create order", "Orders", "Reservaties", "Automaten"];
-  return allNav.filter((item) => allowedLabels.includes(item.label));
+  const defs =
+    role === "admin" ? allNavDefs : allNavDefs.filter((i) => ["home", "createOrder", "orders"].includes(i.key));
+  return defs.map((i) => ({ ...i, label: t("nav." + i.key) }));
 });
 
 const beheerNav = computed(() => {
-  if (userRole.value?.toLowerCase() === "admin") return [{ label: "Users", url: "/users", icon: Users }];
+  if (userRole.value?.toLowerCase() === "admin")
+    return [{ key: "users", label: t("nav.users"), url: "/users", icon: Users }];
   return [];
 });
 

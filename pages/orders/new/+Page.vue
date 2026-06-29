@@ -101,7 +101,7 @@
                 v-if="product.manualOrder"
                 class="shrink-0 border-yellow-300 bg-yellow-100 text-yellow-800 dark:border-yellow-700 dark:bg-yellow-900 dark:text-yellow-200"
               >
-                Handmatig
+                {{ t('newOrder.manual') }}
               </Badge>
             </div>
             <p
@@ -112,7 +112,7 @@
             </p>
           </div>
           <p class="shrink-0 text-sm text-muted-foreground">
-            Ideale stock: <span class="font-medium text-foreground">{{ product.idealStock }}</span>
+            {{ t('newOrder.idealStock') }} <span class="font-medium text-foreground">{{ product.idealStock }}</span>
           </p>
         </div>
 
@@ -159,15 +159,15 @@
         <!-- Sub-label -->
         <p class="text-sm text-muted-foreground">
           <template v-if="product.manualOrder">
-            <span class="font-semibold text-foreground">{{ orderQty(product) }}</span> worden besteld
+            <span class="font-semibold text-foreground">{{ orderQty(product) }}</span> {{ t('newOrder.willBeOrdered') }}
           </template>
           <template v-else-if="nolanMode">
-            <span class="font-semibold text-foreground">{{ orderQty(product) }}</span> worden besteld →
-            In stock geteld: <span class="font-semibold text-foreground">{{ countedQty(product) }}</span>
+            <span class="font-semibold text-foreground">{{ orderQty(product) }}</span> {{ t('newOrder.ordered') }}
+            {{ t('newOrder.countedInStock') }}: <span class="font-semibold text-foreground">{{ countedQty(product) }}</span>
           </template>
           <template v-else>
-            In stock geteld →
-            <span class="font-semibold text-foreground">{{ orderQty(product) }}</span> worden besteld
+            {{ t('newOrder.countedInStock') }} →
+            <span class="font-semibold text-foreground">{{ orderQty(product) }}</span> {{ t('newOrder.willBeOrdered') }}
           </template>
         </p>
       </div>
@@ -182,10 +182,10 @@
           <HardDrive v-else-if="saveStatus === 'local'" class="size-3.5 shrink-0 text-muted-foreground" />
           <CloudOff v-else-if="saveStatus === 'offline'" class="size-3.5 shrink-0 text-amber-500" />
           <Cloud v-else-if="saveStatus === 'saved'" class="size-3.5 shrink-0 text-green-500" />
-          <span v-if="saveStatus === 'saving'" class="text-muted-foreground">Opslaan…</span>
-          <span v-else-if="saveStatus === 'local'" class="text-muted-foreground">Lokaal opgeslagen</span>
-          <span v-else-if="saveStatus === 'offline'" class="text-amber-500">Offline — lokaal opgeslagen</span>
-          <span v-else-if="saveStatus === 'saved'" class="text-green-500">Opgeslagen</span>
+          <span v-if="saveStatus === 'saving'" class="text-muted-foreground">{{ t('newOrder.saving') }}</span>
+          <span v-else-if="saveStatus === 'local'" class="text-muted-foreground">{{ t('newOrder.savedLocally') }}</span>
+          <span v-else-if="saveStatus === 'offline'" class="text-amber-500">{{ t('newOrder.offline') }}</span>
+          <span v-else-if="saveStatus === 'saved'" class="text-green-500">{{ t('newOrder.saved') }}</span>
           <span v-else class="text-muted-foreground"
             >{{ orderLines.length }} item{{ orderLines.length !== 1 ? "s" : "" }}</span
           >
@@ -250,24 +250,23 @@
   <component :is="isDesktop ? Dialog : Drawer" v-model:open="confirmLeaveOpen">
     <component :is="isDesktop ? DialogContent : DrawerContent" :class="isDesktop ? 'sm:max-w-sm' : ''">
       <component :is="isDesktop ? DialogHeader : DrawerHeader" :class="!isDesktop && 'px-6 text-left'">
-        <component :is="isDesktop ? DialogTitle : DrawerTitle">Lopende bestelling</component>
+        <component :is="isDesktop ? DialogTitle : DrawerTitle">{{ t('newOrder.leave.title') }}</component>
         <component :is="isDesktop ? DialogDescription : DrawerDescription">
-          Je bent bezig met een bestelling voor <strong>{{ selectedSupplier?.name }}</strong
-          >. Wat wil je doen?
+          {{ t('newOrder.leave.description', { supplier: selectedSupplier?.name ?? '' }) }}
         </component>
       </component>
       <div :class="['flex flex-col gap-2 pt-2', !isDesktop && 'px-6 pb-6']">
         <Button class="w-full justify-start" @click="leaveAndSave">
           <Cloud class="mr-2 size-4" />
-          Opslaan &amp; weggaan
+          {{ t('newOrder.leave.saveLeave') }}
         </Button>
         <Button variant="destructive" class="w-full justify-start" @click="leaveAndDiscard">
           <Trash2 class="mr-2 size-4" />
-          Annuleren &amp; weggaan
+          {{ t('newOrder.leave.discardLeave') }}
         </Button>
         <Button variant="outline" class="w-full justify-start" @click="confirmLeaveOpen = false">
           <ArrowLeft class="mr-2 size-4" />
-          Doorgaan met bestellen
+          {{ t('newOrder.leave.continue') }}
         </Button>
       </div>
     </component>
@@ -419,6 +418,7 @@ import {
 import { apiFetch } from "@/lib/apiFetch";
 import { useAuth } from "@/lib/useAuth";
 import { useNolanMode } from "@/lib/useNolanMode";
+import { useLocale } from "@/lib/useLocale";
 
 const isDesktop = useMediaQuery("(min-width: 768px)");
 
@@ -443,6 +443,7 @@ interface Product {
 
 const { loading: authLoading } = useAuth();
 const { nolanMode } = useNolanMode();
+const { t } = useLocale();
 
 // ─── Suppliers ────────────────────────────────────────────────────────────────
 const suppliers = ref<Supplier[]>([]);

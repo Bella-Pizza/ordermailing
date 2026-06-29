@@ -155,6 +155,7 @@ import {
 } from "@/components/ui/drawer";
 import { apiFetch } from "@/lib/apiFetch";
 import { useAuth } from "@/lib/useAuth";
+import { useLocale } from "@/lib/useLocale";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface AppUser {
@@ -166,6 +167,7 @@ interface AppUser {
 }
 
 const { currentUser, loading: authLoading } = useAuth();
+const { locale } = useLocale();
 const isDesktop = useMediaQuery("(min-width: 768px)");
 
 const roles = ["admin", "user", "kassa"] as const;
@@ -267,7 +269,7 @@ async function executeDelete() {
 
 function formatDate(iso: string) {
   if (!iso) return "-";
-  return new Date(iso).toLocaleDateString("nl-NL", {
+  return new Date(iso).toLocaleDateString(locale.value, {
     day: "2-digit",
     month: "short",
     year: "numeric",

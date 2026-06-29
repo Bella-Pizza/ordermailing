@@ -3,8 +3,8 @@
     <div class="flex flex-col gap-6">
       <!-- Header -->
       <div class="flex flex-col gap-1">
-        <h1 class="text-2xl font-bold tracking-tight">Sollicitaties</h1>
-        <p class="text-sm text-muted-foreground">Overzicht van alle ingediende sollicitaties.</p>
+        <h1 class="text-2xl font-bold tracking-tight">{{ t('applications.title') }}</h1>
+        <p class="text-sm text-muted-foreground">{{ t('applications.subtitle') }}</p>
       </div>
 
       <!-- Search + filter -->
@@ -14,7 +14,7 @@
           <input
             type="text"
             v-model="searchQuery"
-            placeholder="Zoek op naam, email of gsm..."
+            :placeholder="t('applications.search')"
             class="h-9 w-full rounded-md border border-input bg-background pl-9 pr-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           />
         </div>
@@ -22,28 +22,35 @@
           v-model="statusFilter"
           class="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
         >
-          <option value="">Alle statussen</option>
-          <option value="nieuw">Nieuw</option>
-          <option value="in behandeling">In behandeling</option>
-          <option value="aangenomen">Aangenomen</option>
-          <option value="afgewezen">Afgewezen</option>
+          <option value="">{{ t('applications.filter.all') }}</option>
+          <option value="nieuw">{{ t('applications.filter.new') }}</option>
+          <option value="in behandeling">{{ t('applications.filter.inProgress') }}</option>
+          <option value="aangenomen">{{ t('applications.filter.accepted') }}</option>
+          <option value="afgewezen">{{ t('applications.filter.rejected') }}</option>
         </select>
       </div>
 
       <!-- Empty state -->
       <div v-if="!loading && filtered.length === 0" class="py-16 text-center text-sm text-muted-foreground">
-        Geen sollicitaties gevonden.
+        {{ t('applications.empty') }}
       </div>
 
       <!-- Mobile cards -->
       <div v-else class="grid gap-3 sm:hidden">
-        <Card v-for="s in filtered" :key="s.id" class="p-4 shadow-sm cursor-pointer hover:bg-muted/30 transition-colors" @click="openDetail(s)">
+        <Card
+          v-for="s in filtered"
+          :key="s.id"
+          class="p-4 shadow-sm cursor-pointer hover:bg-muted/30 transition-colors"
+          @click="openDetail(s)"
+        >
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
               <div class="font-medium">{{ s.voornaam }} {{ s.naam }}</div>
               <div class="text-xs text-muted-foreground">{{ formatDate(s.createdAt) }}</div>
             </div>
-            <span :class="['inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize', statusBadgeClass(s.status)]">{{ s.status }}</span>
+            <span :class="['inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', statusBadgeClass(s.status)]">
+              {{ statusLabel(s.status) }}
+            </span>
           </div>
           <div class="mt-3 grid grid-cols-2 gap-2 text-sm text-muted-foreground">
             <div class="flex items-center gap-1.5"><Phone class="size-3.5 shrink-0" /> {{ s.gsm }}</div>
@@ -57,11 +64,11 @@
         <table class="w-full text-sm">
           <thead class="bg-muted/50">
             <tr>
-              <th class="px-4 py-3 text-left font-medium text-muted-foreground">Naam</th>
-              <th class="px-4 py-3 text-left font-medium text-muted-foreground">Contact</th>
-              <th class="px-4 py-3 text-left font-medium text-muted-foreground">Talen</th>
-              <th class="px-4 py-3 text-left font-medium text-muted-foreground">Ingediend</th>
-              <th class="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
+              <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('applications.table.name') }}</th>
+              <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('applications.table.contact') }}</th>
+              <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('applications.table.languages') }}</th>
+              <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('applications.table.submitted') }}</th>
+              <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('applications.table.status') }}</th>
               <th class="px-4 py-3" />
             </tr>
           </thead>
@@ -96,10 +103,10 @@
                   class="h-8 rounded-md border border-input bg-background px-2 py-0 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   :class="statusClass(s.status)"
                 >
-                  <option value="nieuw">Nieuw</option>
-                  <option value="in behandeling">In behandeling</option>
-                  <option value="aangenomen">Aangenomen</option>
-                  <option value="afgewezen">Afgewezen</option>
+                  <option value="nieuw">{{ t('applications.filter.new') }}</option>
+                  <option value="in behandeling">{{ t('applications.filter.inProgress') }}</option>
+                  <option value="aangenomen">{{ t('applications.filter.accepted') }}</option>
+                  <option value="afgewezen">{{ t('applications.filter.rejected') }}</option>
                 </select>
               </td>
               <td class="px-4 py-3 text-right" @click.stop>
@@ -119,72 +126,72 @@
     <DialogContent class="sm:max-w-lg max-h-[90vh] overflow-y-auto">
       <DialogHeader>
         <DialogTitle>{{ detail?.voornaam }} {{ detail?.naam }}</DialogTitle>
-        <DialogDescription>Ingediend op {{ formatDate(detail?.createdAt) }}</DialogDescription>
+        <DialogDescription>{{ t('applications.detail.submittedOn') }} {{ formatDate(detail?.createdAt) }}</DialogDescription>
       </DialogHeader>
 
       <div v-if="detail" class="flex flex-col gap-5 py-2 text-sm">
         <!-- Status -->
         <div class="flex items-center gap-2">
-          <span class="text-muted-foreground w-36 shrink-0">Status</span>
+          <span class="text-muted-foreground w-36 shrink-0">{{ t('applications.table.status') }}</span>
           <select
             :value="detail.status"
             @change="updateStatus(detail!, ($event.target as HTMLSelectElement).value)"
             class="h-8 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             :class="statusClass(detail.status)"
           >
-            <option value="nieuw">Nieuw</option>
-            <option value="in behandeling">In behandeling</option>
-            <option value="aangenomen">Aangenomen</option>
-            <option value="afgewezen">Afgewezen</option>
+            <option value="nieuw">{{ t('applications.filter.new') }}</option>
+            <option value="in behandeling">{{ t('applications.filter.inProgress') }}</option>
+            <option value="aangenomen">{{ t('applications.filter.accepted') }}</option>
+            <option value="afgewezen">{{ t('applications.filter.rejected') }}</option>
           </select>
         </div>
 
         <hr />
 
         <div>
-          <p class="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-3">Persoonlijke gegevens</p>
+          <p class="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-3">{{ t('applications.detail.personal') }}</p>
           <div class="flex flex-col gap-2">
-            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">Naam</span><span class="text-foreground font-medium">{{ detail.voornaam }} {{ detail.naam }}</span></div>
-            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">Geboortedatum</span><span class="text-foreground font-medium">{{ detail.geboortedatum }}</span></div>
-            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">Geboorteplaats</span><span class="text-foreground font-medium">{{ detail.geboorteplaats }}</span></div>
-            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">Adres</span><span class="text-foreground font-medium">{{ detail.adres }}</span></div>
-            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">GSM</span><span class="text-foreground font-medium">{{ detail.gsm }}</span></div>
-            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">E-mail</span><span class="text-foreground font-medium">{{ detail.email || '—' }}</span></div>
-            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">Burgerlijke staat</span><span class="text-foreground font-medium">{{ detail.burgerlijkeStaat }}</span></div>
+            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">{{ t('applications.detail.name') }}</span><span class="text-foreground font-medium">{{ detail.voornaam }} {{ detail.naam }}</span></div>
+            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">{{ t('applications.detail.dob') }}</span><span class="text-foreground font-medium">{{ detail.geboortedatum }}</span></div>
+            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">{{ t('applications.detail.pob') }}</span><span class="text-foreground font-medium">{{ detail.geboorteplaats }}</span></div>
+            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">{{ t('applications.detail.address') }}</span><span class="text-foreground font-medium">{{ detail.adres }}</span></div>
+            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">{{ t('applications.detail.phone') }}</span><span class="text-foreground font-medium">{{ detail.gsm }}</span></div>
+            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">{{ t('applications.detail.email') }}</span><span class="text-foreground font-medium">{{ detail.email || '—' }}</span></div>
+            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">{{ t('applications.detail.civilStatus') }}</span><span class="text-foreground font-medium">{{ detail.burgerlijkeStaat }}</span></div>
           </div>
         </div>
 
         <hr />
 
         <div>
-          <p class="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-3">Administratieve gegevens</p>
+          <p class="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-3">{{ t('applications.detail.admin') }}</p>
           <div class="flex flex-col gap-2">
-            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">Rijksregisternummer</span><span class="text-foreground font-medium">{{ detail.rijksregister }}</span></div>
-            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">Bankrekeningnummer</span><span class="text-foreground font-medium">{{ detail.bankrekening }}</span></div>
+            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">{{ t('applications.detail.nationalRegister') }}</span><span class="text-foreground font-medium">{{ detail.rijksregister }}</span></div>
+            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">{{ t('applications.detail.bankAccount') }}</span><span class="text-foreground font-medium">{{ detail.bankrekening }}</span></div>
           </div>
         </div>
 
         <hr />
 
         <div>
-          <p class="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-3">Taalkennis</p>
+          <p class="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-3">{{ t('applications.detail.languages') }}</p>
           <div class="flex flex-col gap-2">
-            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">Nederlands</span><span class="text-foreground font-medium">{{ detail.kennisNederlands }}</span></div>
-            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">Frans</span><span class="text-foreground font-medium">{{ detail.kennisFrans }}</span></div>
+            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">{{ t('applications.detail.dutch') }}</span><span class="text-foreground font-medium">{{ detail.kennisNederlands }}</span></div>
+            <div class="flex gap-2"><span class="text-muted-foreground w-36 shrink-0">{{ t('applications.detail.french') }}</span><span class="text-foreground font-medium">{{ detail.kennisFrans }}</span></div>
           </div>
         </div>
 
         <hr />
 
         <div>
-          <p class="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-3">Motivatie &amp; hobby's</p>
+          <p class="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-3">{{ t('applications.detail.motivation') }}</p>
           <div class="flex flex-col gap-3">
             <div v-if="detail.hobbys">
-              <p class="text-xs font-medium text-muted-foreground mb-1">Hobby's</p>
+              <p class="text-xs font-medium text-muted-foreground mb-1">{{ t('applications.detail.hobbies') }}</p>
               <p class="text-foreground">{{ detail.hobbys }}</p>
             </div>
             <div>
-              <p class="text-xs font-medium text-muted-foreground mb-1">Motivatie</p>
+              <p class="text-xs font-medium text-muted-foreground mb-1">{{ t('applications.detail.motivationText') }}</p>
               <p class="text-foreground whitespace-pre-line">{{ detail.motivatie }}</p>
             </div>
           </div>
@@ -193,9 +200,9 @@
 
       <DialogFooter class="gap-2">
         <Button variant="destructive" size="sm" @click="confirmDelete(detail!); detailOpen = false">
-          <Trash2 class="mr-1.5 size-3.5" /> Verwijderen
+          <Trash2 class="mr-1.5 size-3.5" /> {{ t('applications.delete') }}
         </Button>
-        <Button @click="detailOpen = false">Sluiten</Button>
+        <Button @click="detailOpen = false">{{ t('applications.close') }}</Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -204,17 +211,16 @@
   <Dialog v-model:open="deleteOpen">
     <DialogContent class="sm:max-w-sm">
       <DialogHeader>
-        <DialogTitle>Sollicitatie verwijderen?</DialogTitle>
+        <DialogTitle>{{ t('applications.deleteTitle') }}</DialogTitle>
         <DialogDescription>
-          Weet je zeker dat je de sollicitatie van
-          <strong>{{ deleteTarget?.voornaam }} {{ deleteTarget?.naam }}</strong> wilt verwijderen?
+          {{ t('applications.deleteConfirm', { name: `${deleteTarget?.voornaam} ${deleteTarget?.naam}` }) }}
         </DialogDescription>
       </DialogHeader>
       <DialogFooter class="gap-2">
-        <Button variant="outline" @click="deleteOpen = false">Annuleren</Button>
+        <Button variant="outline" @click="deleteOpen = false">{{ t('applications.deleteCancel') }}</Button>
         <Button variant="destructive" :disabled="deleting" @click="doDelete">
           <Loader2 v-if="deleting" class="mr-2 size-4 animate-spin" />
-          Verwijderen
+          {{ t('applications.deleteButton') }}
         </Button>
       </DialogFooter>
     </DialogContent>
@@ -237,6 +243,9 @@ import {
 } from "@/components/ui/dialog";
 import { apiFetch } from "@/lib/apiFetch";
 import { useAuth } from "@/lib/useAuth";
+import { useLocale } from "@/lib/useLocale";
+
+const { t, locale } = useLocale();
 
 interface Sollicitatie {
   id: string;
@@ -332,7 +341,17 @@ const filtered = computed(() => {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatDate(iso?: string) {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("nl-NL", { day: "numeric", month: "short", year: "numeric" });
+  return new Date(iso).toLocaleDateString(locale.value, { day: "numeric", month: "short", year: "numeric" });
+}
+
+function statusLabel(status: string) {
+  const map: Record<string, string> = {
+    nieuw: t('applications.status.new'),
+    'in behandeling': t('applications.status.inProgress'),
+    aangenomen: t('applications.status.accepted'),
+    afgewezen: t('applications.status.rejected'),
+  };
+  return map[status] ?? status;
 }
 
 function statusClass(status: string) {

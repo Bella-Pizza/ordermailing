@@ -35,7 +35,7 @@
         <div class="mb-3 flex items-center gap-2">
           <Bell class="size-4 text-amber-600 dark:text-amber-400" />
           <p class="text-sm font-semibold text-amber-900 dark:text-amber-300">
-            Suggested orders for today ({{ todayDayName }})
+            {{ t('home.suggestions.title', { day: todayDayName }) }}
           </p>
         </div>
         <div class="flex flex-col gap-2">
@@ -47,7 +47,7 @@
             <div class="min-w-0">
               <p class="truncate text-sm font-medium">{{ s.supplierName }}</p>
               <p class="text-xs text-muted-foreground">
-                Ordered on {{ todayDayName }}s {{ s.count }}× in history
+                {{ t('home.suggestions.history', { day: todayDayName, count: s.count }) }}
               </p>
             </div>
             <Button size="sm" as-child>
@@ -155,8 +155,10 @@ import { Button } from "@/components/ui/button";
 import TopLoader from "@/components/ui/top-loader/TopLoader.vue";
 import { apiFetch } from "@/lib/apiFetch";
 import { useAuth } from "@/lib/useAuth";
+import { useLocale } from "@/lib/useLocale";
 
 const { currentUser, loading: authLoading } = useAuth();
+const { t, locale } = useLocale();
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface OrderLine { productId: string; internalName: string; quantity: number }
@@ -210,14 +212,14 @@ const firstName = computed(() => {
 
 const greeting = computed(() => {
   const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 18) return "Good afternoon";
-  return "Good evening";
+  if (h < 12) return t('home.greeting.morning');
+  if (h < 18) return t('home.greeting.afternoon');
+  return t('home.greeting.evening');
 });
 
 const now = new Date();
 const todayLabel = computed(() =>
-  now.toLocaleDateString("nl-NL", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
+  now.toLocaleDateString(locale.value, { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
 );
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
@@ -235,16 +237,15 @@ const stats = computed(() => ({
 }));
 
 const statCards = computed(() => [
-  { label: "Total orders", value: stats.value.total, icon: ClipboardList },
-  { label: "Sent (7 days)", value: stats.value.sentThisWeek, icon: Send },
-  { label: "Sent today", value: stats.value.sentToday, icon: CalendarCheck },
-  { label: "Drafts", value: stats.value.drafts, icon: FilePen },
+  { label: t('home.stats.totalOrders'), value: stats.value.total, icon: ClipboardList },
+  { label: t('home.stats.sent7days'), value: stats.value.sentThisWeek, icon: Send },
+  { label: t('home.stats.sentToday'), value: stats.value.sentToday, icon: CalendarCheck },
+  { label: t('home.stats.drafts'), value: stats.value.drafts, icon: FilePen },
 ]);
 
 // ─── Today suggestions ────────────────────────────────────────────────────────
 const todayDow = now.getDay();
-const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const todayDayName = DAY_NAMES[todayDow];
+const todayDayName = computed(() => t('home.dayNames').split(',')[todayDow]);
 
 const orderedTodayIds = computed(() =>
   new Set(orders.value.filter((o) => o.createdAt.slice(0, 10) === todayStr).map((o) => o.supplierId)),
@@ -277,8 +278,8 @@ const chartData = computed(() => {
     const d = new Date(now);
     d.setDate(now.getDate() - (13 - i));
     const date = d.toISOString().slice(0, 10);
-    const label = d.toLocaleDateString("nl-NL", { day: "numeric", month: "numeric" });
-    const fullLabel = d.toLocaleDateString("nl-NL", { day: "numeric", month: "long" });
+    const label = d.toLocaleDateString(locale.value, { day: "numeric", month: "numeric" });
+    const fullLabel = d.toLocaleDateString(locale.value, { day: "numeric", month: "long" });
     const count = orders.value.filter((o) => o.createdAt.slice(0, 10) === date).length;
     return { date, label, fullLabel, count, isToday: date === todayStr };
   });
@@ -302,6 +303,6 @@ const StatusBadge = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("nl-NL", { day: "numeric", month: "short" });
+  return new Date(iso).toLocaleDateString(locale.value, { day: "numeric", month: "short" });
 }
 </script>

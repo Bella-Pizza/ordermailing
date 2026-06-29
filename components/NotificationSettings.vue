@@ -1,30 +1,19 @@
 <template>
   <div v-if="supported" class="flex items-center gap-2 px-4 py-2">
-    <Button
-      v-if="permission === 'default'"
-      variant="outline"
-      size="sm"
-      class="w-full justify-start"
-      @click="requestPermission"
-    >
-      <Bell class="mr-2 size-4" />
-      Meldingen inschakelen
-    </Button>
-    <div v-else-if="permission === 'granted'" class="flex items-center text-xs text-muted-foreground gap-2">
+    <div v-if="permission === 'granted'" class="flex items-center text-xs text-muted-foreground gap-2">
       <BellRing class="size-3 text-green-500" />
-      Meldingen staan aan
+      Notifications on
     </div>
     <div v-else-if="permission === 'denied'" class="flex items-center text-xs text-muted-foreground gap-2">
       <BellOff class="size-3 text-red-500" />
-      Meldingen geblokkeerd
+      Notifications blocked
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { Bell, BellRing, BellOff } from "lucide-vue-next";
-import { Button } from "@/components/ui/button";
+import { BellRing, BellOff } from "lucide-vue-next";
 import { getMessaging, getToken, isSupported, onMessage } from "firebase/messaging";
 import { apiFetch } from "@/lib/apiFetch";
 

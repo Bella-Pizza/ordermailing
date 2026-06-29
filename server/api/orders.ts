@@ -14,9 +14,9 @@ const mailTransporter = nodemailer.createTransport({
   socketTimeout: 8000,
 });
 
-async function sendOrderEmail(orderId: string, orderData: any) {
+async function sendOrderEmail(orderId: string, orderData: any): Promise<boolean> {
   if (!process.env.SMTP_USER || !process.env.SMTP_PASS || !orderData.supplierEmail) {
-    return;
+    return false;
   }
 
   const shopName = process.env.SHOP_NAME || "Our Shop";
@@ -94,8 +94,10 @@ async function sendOrderEmail(orderId: string, orderData: any) {
 
   try {
     await mailTransporter.sendMail(mailOptions);
+    return true;
   } catch (err) {
     console.error("Failed to send order email:", err);
+    return false;
   }
 }
 import { HTTPException } from "hono/http-exception";
@@ -263,6 +265,30 @@ orders.post("/", async (c) => {
   }
 
   return c.json({ ok: true, id: ref.id }, 201);
+});
+
+// ─── POST /api/orders/:id/resend ─────────────────────────────────────────────
+orders.post("/:id/resend", async (c) => {
+  const id = c.req.param("id");
+  const snap = await db.collection("orders").doc(id).get();
+  if (!snap.exists) throw new HTTPException(404, { message: "Order not found" });
+
+  const data = snap.data()!;
+  const shopName = process.env.SHOP_NAME || "Order";
+
+  const sent = await sendOrderEmail(id, data);
+  if (sent) return c.json({ ok: true });
+
+  const lines = ((data.lines ?? []) as any[]).filter((l: any) => l.quantity > 0);
+  const bodyText = [
+    ...lines.map((l: any) => `${l.supplierName || l.internalName}: ${l.quantity}`),
+    ...(data.notes ? [`\nNotes: ${data.notes}`] : []),
+  ].join("\n");
+
+  return c.json({
+    ok: false,
+    mailto: { to: data.supplierEmail ?? "", subject: `Bestelling ${shopName}`, body: bodyText },
+  });
 });
 
 // ─── PATCH /api/orders/:id ────────────────────────────────────────────────────
