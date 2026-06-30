@@ -8,7 +8,14 @@
       "mcp__plugin_context-mode_context-mode__ctx_batch_execute",
       "PowerShell(Get-ChildItem \"C:\\\\Users\\\\Elias\\\\Desktop\\\\ordermailing\\\\pages\" -Recurse | Where-Object { $_.FullName -notmatch \"node_modules|worktrees\" } | Select-Object -ExpandProperty FullName)",
       "Bash(Get-ChildItem C:\\\\Users\\\\Elias\\\\Desktop\\\\ordermailing -Exclude node_modules)",
-      "Bash(Select-Object Name, LastWriteTime)"
+      "Bash(Select-Object Name, LastWriteTime)",
+      "Bash(where pandoc *)",
+      "Bash(where wkhtmltopdf *)",
+      "Bash(node -e \"require\\('puppeteer'\\)\")",
+      "Read(//c/Program Files/Google/Chrome/Application/**)",
+      "Read(//c/Program Files \\(x86\\)/Google/Chrome/Application/**)",
+      "Bash('C:/Program Files/Google/Chrome/Application/chrome.exe' --headless=new --no-sandbox --disable-gpu --print-to-pdf=C:/Users/Elias/Desktop/ordermailing-bella-pizza/Ordermailing_Documentation.pdf --print-to-pdf-no-header file:///C:/Users/Elias/Desktop/ordermailing-bella-pizza/docs_temp.html)",
+      "Bash(echo \"exit: $?\")"
     ]
   }
 }

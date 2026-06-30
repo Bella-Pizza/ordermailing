@@ -190,6 +190,10 @@
               {{ productSearch ? `${filteredProducts.length} of ${products.length}` : products.length }}
               product{{ products.length !== 1 ? "s" : "" }}
             </p>
+            <Button size="sm" variant="outline" class="hidden md:flex" :disabled="productsLoading" @click="openMatrixEdit">
+              <LayoutGrid class="mr-1.5 size-3.5" />
+              Matrix edit
+            </Button>
             <Button size="sm" @click="openAddProduct">
               <Plus class="mr-1.5 size-3.5" />
               Add product
@@ -380,6 +384,62 @@
     </component>
   </component>
 
+  <!-- Matrix Edit Dialog (desktop only) -->
+  <Dialog v-model:open="matrixEditOpen">
+    <DialogContent class="flex max-h-[90vh] flex-col sm:max-w-5xl">
+      <DialogHeader>
+        <DialogTitle>Matrix edit — {{ selectedSupplier?.name }}</DialogTitle>
+        <DialogDescription>Edit all products inline. Only changed rows are saved.</DialogDescription>
+      </DialogHeader>
+      <div class="flex-1 overflow-auto rounded border">
+        <table class="w-full text-sm">
+          <thead class="sticky top-0 z-10 bg-muted/80 backdrop-blur">
+            <tr class="border-b">
+              <th class="w-8 p-2" />
+              <th class="p-2 text-left font-medium text-muted-foreground">Supplier name</th>
+              <th class="p-2 text-left font-medium text-muted-foreground">Our name</th>
+              <th class="p-2 text-left font-medium text-muted-foreground">Ideal stock</th>
+              <th class="p-2 text-center font-medium text-muted-foreground">Manual</th>
+              <th class="p-2 text-center font-medium text-muted-foreground">Active</th>
+            </tr>
+          </thead>
+          <draggable
+            v-model="matrixRows"
+            item-key="id"
+            tag="tbody"
+            handle=".matrix-drag-handle"
+            @end="onMatrixDragEnd"
+          >
+            <template #header>
+              <tr v-if="matrixRows.length === 0">
+                <td colspan="6" class="p-4 text-center text-muted-foreground">No products.</td>
+              </tr>
+            </template>
+            <template #item="{ element: row, index: i }">
+              <tr class="border-b last:border-0 hover:bg-muted/30">
+                <td class="w-8 p-2 pl-3">
+                  <GripVertical class="matrix-drag-handle size-4 cursor-grab text-muted-foreground" />
+                </td>
+                <td class="p-1"><Input v-model="matrixRows[i].supplierName" class="h-8 text-sm" /></td>
+                <td class="p-1"><Input v-model="matrixRows[i].internalName" class="h-8 text-sm" /></td>
+                <td class="p-1"><Input v-model.number="matrixRows[i].idealStock" type="number" min="0" class="h-8 w-24 text-sm" /></td>
+                <td class="p-1 text-center"><Checkbox v-model="matrixRows[i].manualOrder" /></td>
+                <td class="p-1 text-center"><Checkbox v-model="matrixRows[i].isActive" /></td>
+              </tr>
+            </template>
+          </draggable>
+        </table>
+      </div>
+      <DialogFooter class="mt-2">
+        <Button variant="outline" :disabled="matrixSaving" @click="matrixEditOpen = false">Cancel</Button>
+        <Button :disabled="matrixSaving" @click="saveMatrixEdit">
+          <Loader2 v-if="matrixSaving" class="mr-2 size-4 animate-spin" />
+          Save all
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
   <!-- Delete product — Dialog on desktop, Drawer on mobile -->
   <component :is="isDesktop ? Dialog : Drawer" v-model:open="deleteProductOpen">
     <component :is="isDesktop ? DialogContent : DrawerContent" :class="isDesktop ? 'sm:max-w-sm' : ''">
@@ -418,6 +478,7 @@ import {
   ArrowUp,
   ArrowDown,
   GripVertical,
+  LayoutGrid,
 } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -727,6 +788,52 @@ async function saveProduct() {
 function confirmDeleteProduct(product: Product) {
   deleteProductTarget.value = product;
   deleteProductOpen.value = true;
+}
+
+// ─── Matrix Edit ──────────────────────────────────────────────────────────────
+const matrixEditOpen = ref(false);
+const matrixRows = ref<Product[]>([]);
+const matrixSaving = ref(false);
+let matrixOriginal: Product[] = [];
+
+function openMatrixEdit() {
+  matrixOriginal = JSON.parse(JSON.stringify(products.value));
+  matrixRows.value = JSON.parse(JSON.stringify(products.value));
+  matrixEditOpen.value = true;
+}
+
+function onMatrixDragEnd() {
+  matrixRows.value = matrixRows.value.map((row, i) => ({ ...row, displayOrder: i }));
+}
+
+async function saveMatrixEdit() {
+  if (!selectedSupplier.value) return;
+  matrixSaving.value = true;
+  try {
+    const changed = matrixRows.value.filter((row, i) => {
+      const orig = matrixOriginal[i];
+      return (
+        row.supplierName !== orig.supplierName ||
+        row.internalName !== orig.internalName ||
+        row.idealStock !== orig.idealStock ||
+        row.displayOrder !== orig.displayOrder ||
+        row.manualOrder !== orig.manualOrder ||
+        row.isActive !== orig.isActive
+      );
+    });
+    await Promise.all(
+      changed.map((row) =>
+        apiFetch(`/api/suppliers/${selectedSupplier.value!.id}/products/${row.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(row),
+        }),
+      ),
+    );
+    products.value = JSON.parse(JSON.stringify(matrixRows.value));
+    matrixEditOpen.value = false;
+  } finally {
+    matrixSaving.value = false;
+  }
 }
 
 async function executeDeleteProduct() {

@@ -367,8 +367,11 @@
           </DialogDescription>
         </div>
       </div>
-      <DialogFooter class="sm:justify-center">
+      <DialogFooter class="sm:justify-center gap-2">
         <Button variant="outline" @click="newOrder">New order</Button>
+        <Button as-child>
+          <a href="/orders">View orders</a>
+        </Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -1020,6 +1023,8 @@ async function submitOrder() {
     }
     stopSyncTimer();
     clearLocal();
+    draftId.value = null;
+    dirty.value = false;
     lastOrderSupplier.value = selectedSupplier.value.name;
     reviewOpen.value = false;
     successOpen.value = true;
