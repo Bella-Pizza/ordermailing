@@ -1,26 +1,18 @@
 import { GoogleGenAI } from "@google/genai";
+import { google } from "googleapis";
 import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
 import nodemailer from "nodemailer";
 import * as XLSX from "xlsx";
-
-const mailTransporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-  connectionTimeout: 8000,
-  greetingTimeout: 8000,
-  socketTimeout: 8000,
-});
+import { adminAuth, db } from "../firebase-admin";
+import type { Query } from "firebase-admin/firestore";
 
 async function sendOrderEmail(orderId: string, orderData: any): Promise<boolean> {
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASS || !orderData.supplierEmail) {
-    return false;
-  }
+  if (!orderData.supplierEmail) return false;
 
   const shopName = process.env.SHOP_NAME || "Our Shop";
-  const shopEmail = process.env.SHOP_EMAIL || process.env.SMTP_USER;
+  let fromEmail = process.env.SMTP_USER || "";
+  const shopEmail = process.env.SHOP_EMAIL || fromEmail;
   const shopPhone = process.env.SHOP_PHONE || "";
   const shopAddress = process.env.SHOP_ADDRESS || "";
   const shopVatNumber = process.env.SHOP_VAT_NUMBER || "";
@@ -78,32 +70,89 @@ async function sendOrderEmail(orderId: string, orderData: any): Promise<boolean>
   XLSX.utils.book_append_sheet(workbook, worksheet, "Order");
   const excelBuffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
 
-  const mailOptions = {
-    from: `"${shopName}" <${process.env.SMTP_USER}>`,
-    to: orderData.supplierEmail,
-    cc: process.env.SHOP_EMAIL || process.env.SMTP_USER,
-    subject: `Bestelling ${shopName}`,
-    html,
-    attachments: [
-      {
-        filename: `Order_Bestelling_${orderId}.xlsx`,
-        content: excelBuffer,
-      },
-    ],
-  };
+  // ── Try Gmail REST API (OAuth2) ───────────────────────────────────────────
+  if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+    try {
+      const snap = await db.collection("settings").doc("gmail").get();
+      if (snap.exists) {
+        const stored = snap.data()!;
+        fromEmail = stored.email;
+
+        const oauth2Client = new google.auth.OAuth2(
+          process.env.GOOGLE_CLIENT_ID,
+          process.env.GOOGLE_CLIENT_SECRET,
+        );
+        oauth2Client.setCredentials({
+          refresh_token: stored.refresh_token,
+          access_token: stored.access_token,
+          expiry_date: stored.expiry_date,
+        });
+
+        // Compose MIME via nodemailer stream transport, send via Gmail API
+        const streamTransport = nodemailer.createTransport({ streamTransport: true, newline: "unix" });
+        const info = await streamTransport.sendMail({
+          from: `"${shopName}" <${fromEmail}>`,
+          to: orderData.supplierEmail,
+          cc: process.env.SHOP_EMAIL || fromEmail,
+          subject: `Bestelling ${shopName}`,
+          html,
+          attachments: [{ filename: `Order_Bestelling_${orderId}.xlsx`, content: excelBuffer }],
+        });
+
+        const chunks: Buffer[] = [];
+        for await (const chunk of info.message as AsyncIterable<Buffer>) {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+        const raw = Buffer.concat(chunks)
+          .toString("base64")
+          .replace(/\+/g, "-")
+          .replace(/\//g, "_")
+          .replace(/=+$/, "");
+
+        const gmailApi = google.gmail({ version: "v1", auth: oauth2Client });
+        await gmailApi.users.messages.send({ userId: "me", requestBody: { raw } });
+
+        // Persist refreshed tokens if they changed
+        oauth2Client.on("tokens", async (tokens) => {
+          await db.collection("settings").doc("gmail").update({
+            ...(tokens.access_token && { access_token: tokens.access_token }),
+            ...(tokens.expiry_date && { expiry_date: tokens.expiry_date }),
+          });
+        });
+
+        return true;
+      }
+    } catch (err) {
+      console.warn("Gmail API send failed, falling back to SMTP:", err);
+    }
+  }
+
+  // ── Fall back to SMTP app password ────────────────────────────────────────
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) return false;
+
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
+    socketTimeout: 8000,
+  });
 
   try {
-    await mailTransporter.sendMail(mailOptions);
+    await transporter.sendMail({
+      from: `"${shopName}" <${process.env.SMTP_USER}>`,
+      to: orderData.supplierEmail,
+      cc: process.env.SHOP_EMAIL || process.env.SMTP_USER,
+      subject: `Bestelling ${shopName}`,
+      html,
+      attachments: [{ filename: `Order_Bestelling_${orderId}.xlsx`, content: excelBuffer }],
+    });
     return true;
   } catch (err) {
     console.error("Failed to send order email:", err);
     return false;
   }
 }
-import { HTTPException } from "hono/http-exception";
-import { adminAuth, db } from "../firebase-admin";
-import type { Query } from "firebase-admin/firestore";
-
 type ProductInfo = { id: string; internalName: string; supplierName: string; idealStock: number; manualOrder: boolean };
 type PastOrder = { date: string; lines: Array<{ productId: string; name: string; quantity: number }> };
 

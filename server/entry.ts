@@ -10,6 +10,7 @@ import { automatenRouter } from "./api/automaten";
 import { designsRouter } from "./api/designs";
 import { reservationsRouter } from "./api/reservations";
 import { sollicitatiesRouter } from "./api/sollicitaties";
+import { gmailRouter } from "./api/gmail";
 
 sentryServerConfig();
 
@@ -55,6 +56,7 @@ function startApp() {
   app.route("/api/designs", designsRouter);
   app.route("/api/reservations", reservationsRouter);
   app.route("/api/sollicitaties", sollicitatiesRouter);
+  app.route("/api/gmail", gmailRouter);
 
   apply(app, []);
 

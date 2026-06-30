@@ -120,6 +120,52 @@
       </div>
     </div>
 
+    <!-- ─── Gmail connection section (admin only) ──────────────────────────── -->
+    <div v-if="userRole === 'admin'" class="rounded-lg border">
+      <div class="flex flex-col gap-1 border-b px-6 py-4">
+        <h2 class="font-semibold">{{ t('settings.gmail.title') }}</h2>
+        <p class="text-sm text-muted-foreground">{{ t('settings.gmail.subtitle') }}</p>
+      </div>
+      <div class="flex flex-col gap-4 px-6 py-5">
+        <div v-if="gmailStatus === null" class="text-sm text-muted-foreground">{{ t('common.loading') }}</div>
+
+        <div v-else-if="!gmailStatus.configured" class="rounded-md border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800 dark:border-yellow-800 dark:bg-yellow-950 dark:text-yellow-300">
+          {{ t('settings.gmail.notConfigured') }}
+        </div>
+
+        <template v-else>
+          <div v-if="gmailStatus.connected" class="flex items-center gap-3">
+            <div class="flex size-9 shrink-0 items-center justify-center rounded-full bg-green-100 dark:bg-green-950">
+              <CheckCircle class="size-5 text-green-600 dark:text-green-400" />
+            </div>
+            <div>
+              <p class="text-sm font-medium">{{ t('settings.gmail.connected', { email: gmailStatus.email }) }}</p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <Button v-if="!gmailStatus.connected" @click="connectGmail">
+              <svg class="mr-2 size-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+              </svg>
+              {{ t('settings.gmail.connect') }}
+            </Button>
+            <Button v-else variant="outline" :disabled="gmailDisconnecting" @click="disconnectGmail">
+              <Loader2 v-if="gmailDisconnecting" class="mr-2 size-4 animate-spin" />
+              {{ gmailDisconnecting ? t('settings.gmail.disconnecting') : t('settings.gmail.disconnect') }}
+            </Button>
+            <span v-if="gmailSuccessMsg" class="flex items-center gap-1.5 text-sm text-green-600">
+              <CheckCircle class="size-4" /> {{ gmailSuccessMsg }}
+            </span>
+            <span v-if="gmailErrorMsg" class="text-sm text-destructive">{{ gmailErrorMsg }}</span>
+          </div>
+        </template>
+      </div>
+    </div>
+
     <!-- ─── Import section ───────────────────────────────────────────────────── -->
     <div class="rounded-lg border">
       <div class="flex flex-col gap-1 border-b px-6 py-4">
@@ -251,7 +297,7 @@ import { apiFetch } from "@/lib/apiFetch";
 const { isDark, toggleTheme } = useTheme();
 const { nolanMode } = useNolanMode();
 const { t, lang, setLang } = useLocale();
-const { currentUser } = useAuth();
+const { currentUser, userRole } = useAuth();
 
 // ─── Profile ──────────────────────────────────────────────────────────────────
 const profileName = ref("");
@@ -261,6 +307,20 @@ const profileError = ref("");
 
 onMounted(() => {
   profileName.value = currentUser.value?.displayName ?? "";
+
+  if (userRole.value === "admin") {
+    fetchGmailStatus();
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("gmail_connected")) {
+      gmailSuccessMsg.value = t("settings.gmail.successMsg");
+      setTimeout(() => { gmailSuccessMsg.value = ""; }, 4000);
+      history.replaceState(null, "", window.location.pathname);
+    } else if (params.has("gmail_error")) {
+      gmailErrorMsg.value = t("settings.gmail.errorMsg");
+      history.replaceState(null, "", window.location.pathname);
+    }
+  }
 });
 
 async function saveProfile() {
@@ -319,6 +379,57 @@ async function changePassword() {
     }
   } finally {
     passwordSaving.value = false;
+  }
+}
+
+// ─── Gmail ────────────────────────────────────────────────────────────────────
+interface GmailStatus {
+  configured: boolean;
+  connected: boolean;
+  email?: string;
+  connectedAt?: string;
+}
+
+const gmailStatus = ref<GmailStatus | null>(null);
+const gmailDisconnecting = ref(false);
+const gmailSuccessMsg = ref("");
+const gmailErrorMsg = ref("");
+
+async function fetchGmailStatus() {
+  try {
+    const res = await apiFetch("/api/gmail/status");
+    if (res.ok) gmailStatus.value = await res.json();
+  } catch {
+    // silently ignore
+  }
+}
+
+async function connectGmail() {
+  gmailErrorMsg.value = "";
+  try {
+    const res = await apiFetch("/api/gmail/auth-url");
+    if (!res.ok) { gmailErrorMsg.value = t("settings.gmail.errorMsg"); return; }
+    const { url } = await res.json();
+    window.location.href = url;
+  } catch {
+    gmailErrorMsg.value = t("settings.gmail.errorMsg");
+  }
+}
+
+async function disconnectGmail() {
+  gmailDisconnecting.value = true;
+  gmailSuccessMsg.value = "";
+  gmailErrorMsg.value = "";
+  try {
+    const res = await apiFetch("/api/gmail/disconnect", { method: "DELETE" });
+    if (!res.ok) { gmailErrorMsg.value = t("settings.gmail.errorMsg"); return; }
+    gmailStatus.value = { configured: true, connected: false };
+    gmailSuccessMsg.value = t("settings.gmail.disconnectSuccess");
+    setTimeout(() => { gmailSuccessMsg.value = ""; }, 3000);
+  } catch {
+    gmailErrorMsg.value = t("settings.gmail.errorMsg");
+  } finally {
+    gmailDisconnecting.value = false;
   }
 }
 

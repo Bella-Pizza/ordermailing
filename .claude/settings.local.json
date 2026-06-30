@@ -15,7 +15,11 @@
       "Read(//c/Program Files/Google/Chrome/Application/**)",
       "Read(//c/Program Files \\(x86\\)/Google/Chrome/Application/**)",
       "Bash('C:/Program Files/Google/Chrome/Application/chrome.exe' --headless=new --no-sandbox --disable-gpu --print-to-pdf=C:/Users/Elias/Desktop/ordermailing-bella-pizza/Ordermailing_Documentation.pdf --print-to-pdf-no-header file:///C:/Users/Elias/Desktop/ordermailing-bella-pizza/docs_temp.html)",
-      "Bash(echo \"exit: $?\")"
+      "Bash(echo \"exit: $?\")",
+      "Bash(npm install *)",
+      "Bash(node -e \"require\\('googleapis'\\)\")",
+      "Bash(Get-Content \"C:\\\\Users\\\\Elias\\\\Desktop\\\\ordermailing-bella-pizza\\\\.env\")",
+      "Bash(Select-String \"GOOGLE_REDIRECT_URI\")"
     ]
   }
 }
