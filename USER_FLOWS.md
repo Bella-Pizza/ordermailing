@@ -206,29 +206,7 @@ Range selector: Last 30 days / 90 days / 6 months / All time.
 
 ---
 
-## 8. Applications (`/sollicitaties`) — Admin only
-
-Manages job applications submitted externally.
-
-### List view
-- Search by name, email, or phone.
-- Status filter dropdown: All / New / In progress / Accepted / Rejected.
-- Desktop: table with inline status dropdown per row. Mobile: cards.
-
-### View application detail
-- Click any row/card → detail dialog.
-- Sections: Status selector, Personal info, Administrative info (national register, IBAN), Languages (Dutch / French proficiency), Motivation & hobbies.
-
-### Update status
-- Change the status dropdown (table row, detail dialog, or mobile card) → PATCH API call.
-- Available statuses: `nieuw` / `in behandeling` / `aangenomen` / `afgewezen`.
-
-### Delete application
-- Trash icon → confirmation dialog → DELETE → removed from list.
-
----
-
-## 9. Settings (`/settings`)
+## 8. Settings (`/settings`)
 
 Available to all authenticated roles.
 
@@ -256,7 +234,7 @@ Available to all authenticated roles.
 
 ---
 
-## 10. Cross-cutting flows
+## 9. Cross-cutting flows
 
 ### What's New dialog
 - Shown once per app version on first load after login (keyed by `whats_new_dismissed` in `localStorage`).

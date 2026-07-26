@@ -191,7 +191,6 @@ import {
   PenTool,
   Calendar,
   Sparkles,
-  FileText,
 } from "lucide-vue-next";
 
 // ─── What's new ───────────────────────────────────────────────────────────────
@@ -310,7 +309,6 @@ const allNavDefs = [
   { key: "createOrder", url: "/orders/new", icon: PlusCircle },
   { key: "orders", url: "/orders", icon: ClipboardList },
   // { key: "reservations", url: "/reservations", icon: Calendar }, // INACTIVE
-  { key: "applications", url: "/sollicitaties", icon: FileText },
   { key: "suppliers", url: "/suppliers", icon: Truck },
   { key: "history", url: "/history", icon: History },
   // { key: "automaten", url: "/automaten", icon: Bot },             // INACTIVE
