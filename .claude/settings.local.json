@@ -20,7 +20,11 @@
       "Bash(node -e \"require\\('googleapis'\\)\")",
       "Bash(Get-Content \"C:\\\\Users\\\\Elias\\\\Desktop\\\\ordermailing-bella-pizza\\\\.env\")",
       "Bash(Select-String \"GOOGLE_REDIRECT_URI\")",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(git push:*)",
+      "Bash(printenv)",
+      "Read(//Users/gezelligheid/**)",
+      "Bash(ssh -T git@github.com -o StrictHostKeyChecking=no -o BatchMode=yes)"
     ]
   }
 }
