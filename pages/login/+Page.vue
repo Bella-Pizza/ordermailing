@@ -8,14 +8,14 @@
         >
           <Mail class="size-6" />
         </div>
-        <h1 class="text-2xl font-bold">Welcome back</h1>
-        <p class="mt-1 text-sm text-muted-foreground">Sign in to your Ordermailing account</p>
+        <h1 class="text-2xl font-bold">{{ t('login.welcome') }}</h1>
+        <p class="mt-1 text-sm text-muted-foreground">{{ t('login.subtitle') }}</p>
       </div>
 
       <!-- Login form -->
       <form class="flex flex-col gap-4" @submit.prevent="handleSubmit">
         <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium" for="email">Email address</label>
+          <label class="text-sm font-medium" for="email">{{ t('login.email') }}</label>
           <Input
             id="email"
             v-model="email"
@@ -28,7 +28,7 @@
         </div>
 
         <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium" for="password">Password</label>
+          <label class="text-sm font-medium" for="password">{{ t('login.password') }}</label>
           <Input
             id="password"
             v-model="password"
@@ -49,7 +49,7 @@
 
         <Button type="submit" class="w-full" :disabled="loading">
           <Loader2 v-if="loading" class="mr-2 size-4 animate-spin" />
-          Sign in
+          {{ t('login.signIn') }}
         </Button>
       </form>
     </div>
@@ -62,8 +62,10 @@ import { Mail, Loader2 } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/useAuth";
+import { useLocale } from "@/lib/useLocale";
 
 const { signIn, currentUser } = useAuth();
+const { t } = useLocale();
 
 const email = ref("");
 const password = ref("");
@@ -92,11 +94,11 @@ async function handleSubmit() {
   } catch (err: any) {
     const code = err?.code ?? "";
     if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") {
-      error.value = "Invalid email or password.";
+      error.value = t("login.error.invalidCredential");
     } else if (code === "auth/too-many-requests") {
-      error.value = "Too many failed attempts. Please try again later.";
+      error.value = t("login.error.tooManyRequests");
     } else {
-      error.value = "An unexpected error occurred. Please try again.";
+      error.value = t("login.error.unexpected");
     }
   } finally {
     loading.value = false;

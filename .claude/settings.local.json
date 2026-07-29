@@ -30,7 +30,9 @@
       "Bash(npx vue-tsc:*)",
       "Bash(export PATH=\"/usr/local/bin:$PATH\")",
       "Bash(ls tsconfig*.json server/tsconfig*.json)",
-      "Bash(./node_modules/.bin/tsc --noEmit)"
+      "Bash(./node_modules/.bin/tsc --noEmit)",
+      "Bash(timeout 300 ./node_modules/.bin/vike build)",
+      "Bash(./node_modules/.bin/vike build:*)"
     ]
   }
 }

@@ -11,7 +11,7 @@
         <Button as-child size="lg">
           <a href="/orders/new">
             <PlusCircle class="size-4" />
-            New order
+            {{ t('home.newOrder') }}
           </a>
         </Button>
       </div>
@@ -51,7 +51,7 @@
               </p>
             </div>
             <Button size="sm" as-child>
-              <a href="/orders/new">Order now</a>
+              <a href="/orders/new">{{ t('home.suggestions.orderNow') }}</a>
             </Button>
           </div>
         </div>
@@ -62,8 +62,8 @@
 
         <!-- Bar chart -->
         <div class="rounded-lg border bg-card p-5 lg:col-span-3">
-          <p class="text-sm font-semibold">Orders per day</p>
-          <p class="mb-5 text-xs text-muted-foreground">Last 14 days</p>
+          <p class="text-sm font-semibold">{{ t('home.chart.title') }}</p>
+          <p class="mb-5 text-xs text-muted-foreground">{{ t('home.chart.subtitle') }}</p>
 
           <div v-if="loading" class="flex h-32 items-end gap-1">
             <div
@@ -90,7 +90,7 @@
                   height: day.count ? `${Math.max(6, (day.count / maxChart) * 96)}px` : '3px',
                   opacity: day.count ? undefined : '0.2',
                 }"
-                :title="`${day.fullLabel}: ${day.count} order${day.count !== 1 ? 's' : ''}`"
+                :title="`${day.fullLabel}: ${day.count} ${day.count !== 1 ? t('home.orderWordPlural') : t('home.orderWord')}`"
               />
               <span
                 class="text-[10px] text-muted-foreground"
@@ -104,7 +104,7 @@
 
         <!-- Recent orders -->
         <div class="rounded-lg border bg-card p-5 lg:col-span-2">
-          <p class="mb-4 text-sm font-semibold">Recent orders</p>
+          <p class="mb-4 text-sm font-semibold">{{ t('home.recentOrders') }}</p>
 
           <div class="flex flex-col divide-y">
             <div v-if="loading" v-for="i in 5" :key="i" class="flex items-center justify-between gap-2 py-2.5">
@@ -119,7 +119,7 @@
               v-else-if="recentOrders.length === 0"
               class="py-8 text-center text-sm text-muted-foreground"
             >
-              No orders yet.
+              {{ t('home.noOrders') }}
             </div>
 
             <div
@@ -138,7 +138,7 @@
 
           <div v-if="!loading && recentOrders.length" class="mt-3 border-t pt-3">
             <a href="/orders" class="text-xs text-muted-foreground transition-colors hover:text-foreground">
-              View all orders →
+              {{ t('home.viewAll') }}
             </a>
           </div>
         </div>
@@ -292,8 +292,8 @@ const StatusBadge = {
   props: ["status"],
   setup(props: { status: string }) {
     const cfg: Record<string, { label: string; cls: string }> = {
-      draft: { label: "Draft", cls: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" },
-      sent: { label: "Sent", cls: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" },
+      draft: { label: t("home.status.draft"), cls: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" },
+      sent: { label: t("home.status.sent"), cls: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" },
     };
     const c = computed(() => cfg[props.status] ?? { label: props.status, cls: "bg-muted text-muted-foreground" });
     return { c };

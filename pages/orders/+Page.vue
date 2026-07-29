@@ -4,13 +4,13 @@
       <!-- Header -->
       <div class="flex items-center justify-between">
         <div>
-          <h1 class="text-2xl font-bold tracking-tight">Orders</h1>
-          <p class="text-sm text-muted-foreground">All orders, including drafts and sent orders.</p>
+          <h1 class="text-2xl font-bold tracking-tight">{{ t('orders.title') }}</h1>
+          <p class="text-sm text-muted-foreground">{{ t('orders.subtitle') }}</p>
         </div>
         <Button as-child>
           <a href="/orders/new">
             <PlusCircle class="mr-2 size-4" />
-            New order
+            {{ t('orders.newOrder') }}
           </a>
         </Button>
       </div>
@@ -31,7 +31,7 @@
       <!-- ─── MOBILE: infinite scroll ──────────────────────────────────────────── -->
       <div class="md:hidden flex flex-col gap-3">
         <div v-if="!mobileLoading && mobileItems.length === 0" class="py-16 text-center text-sm text-muted-foreground">
-          {{ activeFilter === "all" ? "No orders yet." : `No ${activeFilter} orders.` }}
+          {{ activeFilter === "all" ? t('orders.empty.all') : t(`orders.empty.${activeFilter}` as any) }}
         </div>
         <template v-else>
           <div
@@ -44,22 +44,22 @@
               <div class="min-w-0">
                 <div class="flex items-center gap-1.5">
                   <p class="truncate font-medium">{{ order.supplierName }}</p>
-                  <Sparkles v-if="order.fromAiTemplate" class="size-3.5 shrink-0 text-purple-500" title="Started from AI template" />
+                  <Sparkles v-if="order.fromAiTemplate" class="size-3.5 shrink-0 text-purple-500" :title="t('orders.aiTemplate')" />
                 </div>
                 <p class="truncate text-xs text-muted-foreground">{{ formatDate(order.createdAt) }}</p>
               </div>
               <StatusBadge :status="order.status" />
             </div>
             <div class="mt-3 flex items-center justify-between text-sm text-muted-foreground">
-              <span>{{ totalItems(order) }} item{{ totalItems(order) !== 1 ? "s" : "" }}</span>
+              <span>{{ totalItems(order) }} {{ totalItems(order) !== 1 ? t('orders.itemWordPlural') : t('orders.itemWord') }}</span>
               <div class="flex gap-1" @click.stop>
-                <Button v-if="order.status === 'draft'" variant="ghost" size="icon" title="Continue draft" @click="continueOrder(order)">
+                <Button v-if="order.status === 'draft'" variant="ghost" size="icon" :title="t('orders.continueDraft')" @click="continueOrder(order)">
                   <Pencil class="size-4" />
                 </Button>
-                <Button v-if="order.status === 'sent'" variant="ghost" size="icon" title="Resend email" @click="confirmResend(order)">
+                <Button v-if="order.status === 'sent'" variant="ghost" size="icon" :title="t('orders.resendEmail')" @click="confirmResend(order)">
                   <RotateCw class="size-4 text-muted-foreground" />
                 </Button>
-                <Button variant="ghost" size="icon" title="Delete" @click="confirmDelete(order)">
+                <Button variant="ghost" size="icon" :title="t('common.delete')" @click="confirmDelete(order)">
                   <Trash2 class="size-4 text-muted-foreground" />
                 </Button>
               </div>
@@ -68,7 +68,7 @@
           <!-- Sentinel -->
           <div ref="mobileSentinel" class="py-2 text-center text-sm text-muted-foreground">
             <Loader2 v-if="mobileLoadingMore" class="mx-auto size-4 animate-spin" />
-            <span v-else-if="!mobileHasMore" class="opacity-40">All orders loaded</span>
+            <span v-else-if="!mobileHasMore" class="opacity-40">{{ t('orders.allLoaded') }}</span>
           </div>
         </template>
       </div>
@@ -76,18 +76,18 @@
       <!-- ─── DESKTOP: paginated table ─────────────────────────────────────────── -->
       <div class="hidden md:flex md:flex-col md:gap-4">
         <div v-if="!deskLoading && deskItems.length === 0" class="py-16 text-center text-sm text-muted-foreground">
-          {{ activeFilter === "all" ? "No orders yet." : `No ${activeFilter} orders.` }}
+          {{ activeFilter === "all" ? t('orders.empty.all') : t(`orders.empty.${activeFilter}` as any) }}
         </div>
         <template v-else>
           <div class="rounded-lg border overflow-hidden">
             <table class="w-full text-sm">
               <thead class="bg-muted/50">
                 <tr>
-                  <th class="px-4 py-3 text-left font-medium text-muted-foreground">Supplier</th>
-                  <th class="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
-                  <th class="px-4 py-3 text-left font-medium text-muted-foreground">Items</th>
-                  <th class="px-4 py-3 text-left font-medium text-muted-foreground">Created by</th>
-                  <th class="px-4 py-3 text-left font-medium text-muted-foreground">Date</th>
+                  <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('orders.table.supplier') }}</th>
+                  <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('orders.table.status') }}</th>
+                  <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('orders.table.items') }}</th>
+                  <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('orders.table.createdBy') }}</th>
+                  <th class="px-4 py-3 text-left font-medium text-muted-foreground">{{ t('orders.table.date') }}</th>
                   <th class="px-4 py-3" />
                 </tr>
               </thead>
@@ -101,7 +101,7 @@
                   <td class="px-4 py-3 font-medium">
                     <div class="flex items-center gap-1.5">
                       {{ order.supplierName }}
-                      <Sparkles v-if="order.fromAiTemplate" class="size-3.5 shrink-0 text-purple-500" title="Started from AI template" />
+                      <Sparkles v-if="order.fromAiTemplate" class="size-3.5 shrink-0 text-purple-500" :title="t('orders.aiTemplate')" />
                     </div>
                   </td>
                   <td class="px-4 py-3"><StatusBadge :status="order.status" /></td>
@@ -114,7 +114,7 @@
                         v-if="order.status === 'draft'"
                         variant="ghost"
                         size="icon"
-                        title="Continue draft"
+                        :title="t('orders.continueDraft')"
                         @click="continueOrder(order)"
                       >
                         <Pencil class="size-4" />
@@ -123,12 +123,12 @@
                         v-if="order.status === 'sent'"
                         variant="ghost"
                         size="icon"
-                        title="Resend email"
+                        :title="t('orders.resendEmail')"
                         @click="confirmResend(order)"
                       >
                         <RotateCw class="size-4 text-muted-foreground" />
                       </Button>
-                      <Button variant="ghost" size="icon" title="Delete" @click="confirmDelete(order)">
+                      <Button variant="ghost" size="icon" :title="t('common.delete')" @click="confirmDelete(order)">
                         <Trash2 class="size-4 text-muted-foreground" />
                       </Button>
                     </div>
@@ -139,13 +139,13 @@
           </div>
           <!-- Pagination controls -->
           <div class="flex items-center justify-between text-sm text-muted-foreground">
-            <span>Page {{ deskPage + 1 }}</span>
+            <span>{{ t('orders.page', { n: deskPage + 1 }) }}</span>
             <div class="flex gap-2">
               <Button variant="outline" size="sm" :disabled="deskPage === 0" @click="goToPage(deskPage - 1)">
-                <ChevronLeft class="size-4 mr-1" /> Previous
+                <ChevronLeft class="size-4 mr-1" /> {{ t('orders.previous') }}
               </Button>
               <Button variant="outline" size="sm" :disabled="!deskHasMore" @click="goToPage(deskPage + 1)">
-                Next <ChevronRight class="size-4 ml-1" />
+                {{ t('orders.next') }} <ChevronRight class="size-4 ml-1" />
               </Button>
             </div>
           </div>
@@ -162,7 +162,7 @@
           <div class="min-w-0">
             <DialogTitle class="flex items-center gap-2">
               {{ detailOrder?.supplierName }}
-              <Sparkles v-if="detailOrder?.fromAiTemplate" class="size-3.5 text-purple-500" title="AI template" />
+              <Sparkles v-if="detailOrder?.fromAiTemplate" class="size-3.5 text-purple-500" :title="t('orders.aiTemplateShort')" />
             </DialogTitle>
             <DialogDescription class="mt-0.5">
               {{ detailOrder?.supplierEmail || "—" }} · {{ detailOrder ? formatDate(detailOrder.createdAt) : "" }}
@@ -175,8 +175,8 @@
       <div v-if="detailOrder" class="flex flex-col gap-4">
         <!-- Meta row -->
         <div class="flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted-foreground">
-          <span v-if="detailOrder.createdByName">Created by <strong class="text-foreground">{{ detailOrder.createdByName }}</strong></span>
-          <span v-if="detailOrder.updatedAt">Updated {{ formatDate(detailOrder.updatedAt) }}</span>
+          <span v-if="detailOrder.createdByName">{{ t('orders.detail.createdByInline') }} <strong class="text-foreground">{{ detailOrder.createdByName }}</strong></span>
+          <span v-if="detailOrder.updatedAt">{{ t('orders.detail.updated', { date: formatDate(detailOrder.updatedAt) }) }}</span>
         </div>
 
         <!-- Order lines table -->
@@ -184,8 +184,8 @@
           <table class="w-full text-sm">
             <thead class="bg-muted/50">
               <tr>
-                <th class="px-3 py-2 text-left font-medium text-muted-foreground">Product</th>
-                <th class="px-3 py-2 text-right font-medium text-muted-foreground">Qty</th>
+                <th class="px-3 py-2 text-left font-medium text-muted-foreground">{{ t('orders.detail.product') }}</th>
+                <th class="px-3 py-2 text-right font-medium text-muted-foreground">{{ t('orders.detail.qty') }}</th>
               </tr>
             </thead>
             <tbody class="divide-y">
@@ -197,12 +197,12 @@
                 <td class="px-3 py-2 text-right font-semibold tabular-nums">{{ line.quantity }}</td>
               </tr>
               <tr v-if="!detailOrder.lines.some(l => l.quantity > 0)">
-                <td colspan="2" class="px-3 py-4 text-center text-xs text-muted-foreground">No items in this order.</td>
+                <td colspan="2" class="px-3 py-4 text-center text-xs text-muted-foreground">{{ t('orders.detail.noItems') }}</td>
               </tr>
             </tbody>
             <tfoot class="border-t bg-muted/30">
               <tr>
-                <td class="px-3 py-2 text-xs font-medium text-muted-foreground">Total</td>
+                <td class="px-3 py-2 text-xs font-medium text-muted-foreground">{{ t('orders.detail.total') }}</td>
                 <td class="px-3 py-2 text-right text-sm font-bold tabular-nums">{{ totalItems(detailOrder) }}</td>
               </tr>
             </tfoot>
@@ -211,32 +211,32 @@
 
         <!-- Notes -->
         <div v-if="detailOrder.notes" class="rounded-md border bg-muted/30 px-3 py-2 text-sm">
-          <p class="text-xs font-medium text-muted-foreground mb-1">Notes</p>
+          <p class="text-xs font-medium text-muted-foreground mb-1">{{ t('orders.detail.notes') }}</p>
           <p class="whitespace-pre-line">{{ detailOrder.notes }}</p>
         </div>
       </div>
 
       <DialogFooter class="mt-2 flex-wrap gap-2">
-        <Button variant="outline" @click="detailOpen = false">Close</Button>
+        <Button variant="outline" @click="detailOpen = false">{{ t('common.close') }}</Button>
         <Button
           v-if="detailOrder?.status === 'draft'"
           variant="outline"
           @click="continueOrder(detailOrder!); detailOpen = false"
         >
-          <Pencil class="mr-2 size-4" /> Continue draft
+          <Pencil class="mr-2 size-4" /> {{ t('orders.continueDraft') }}
         </Button>
         <Button
           v-if="detailOrder?.status === 'sent'"
           variant="outline"
           @click="confirmResend(detailOrder!); detailOpen = false"
         >
-          <RotateCw class="mr-2 size-4" /> Resend email
+          <RotateCw class="mr-2 size-4" /> {{ t('orders.resendEmail') }}
         </Button>
         <Button
           variant="destructive"
           @click="confirmDelete(detailOrder!); detailOpen = false"
         >
-          <Trash2 class="mr-2 size-4" /> Delete
+          <Trash2 class="mr-2 size-4" /> {{ t('common.delete') }}
         </Button>
       </DialogFooter>
     </DialogContent>
@@ -246,17 +246,16 @@
   <component :is="isDesktop ? Dialog : Drawer" v-model:open="deleteOpen">
     <component :is="isDesktop ? DialogContent : DrawerContent" class="sm:max-w-md">
       <component :is="isDesktop ? DialogHeader : DrawerHeader">
-        <component :is="isDesktop ? DialogTitle : DrawerTitle">Delete order?</component>
+        <component :is="isDesktop ? DialogTitle : DrawerTitle">{{ t('orders.delete.title') }}</component>
         <component :is="isDesktop ? DialogDescription : DrawerDescription">
-          This will permanently delete the order for
-          <strong>{{ deleteTarget?.supplierName }}</strong>. This cannot be undone.
+          {{ t('orders.delete.description', { supplier: deleteTarget?.supplierName ?? '' }) }}
         </component>
       </component>
       <component :is="isDesktop ? DialogFooter : DrawerFooter" :class="['gap-2', !isDesktop && 'px-4 pb-4']">
-        <Button variant="outline" @click="deleteOpen = false">Cancel</Button>
+        <Button variant="outline" @click="deleteOpen = false">{{ t('common.cancel') }}</Button>
         <Button variant="destructive" :disabled="deleting" @click="doDelete">
           <Loader2 v-if="deleting" class="mr-2 size-4 animate-spin" />
-          Delete
+          {{ t('common.delete') }}
         </Button>
       </component>
     </component>
@@ -266,17 +265,17 @@
   <component :is="isDesktop ? Dialog : Drawer" v-model:open="resendOpen">
     <component :is="isDesktop ? DialogContent : DrawerContent" class="sm:max-w-md">
       <component :is="isDesktop ? DialogHeader : DrawerHeader">
-        <component :is="isDesktop ? DialogTitle : DrawerTitle">Resend order email?</component>
+        <component :is="isDesktop ? DialogTitle : DrawerTitle">{{ t('orders.resend.title') }}</component>
         <component :is="isDesktop ? DialogDescription : DrawerDescription">
-          This will resend the order email to <strong>{{ resendTarget?.supplierName }}</strong>.
+          {{ t('orders.resend.description', { supplier: resendTarget?.supplierName ?? '' }) }}
         </component>
       </component>
       <component :is="isDesktop ? DialogFooter : DrawerFooter" :class="['gap-2', !isDesktop && 'px-4 pb-4']">
-        <Button variant="outline" @click="resendOpen = false">Cancel</Button>
+        <Button variant="outline" @click="resendOpen = false">{{ t('common.cancel') }}</Button>
         <Button :disabled="resending" @click="doResend">
           <Loader2 v-if="resending" class="mr-2 size-4 animate-spin" />
           <RotateCw v-else class="mr-2 size-4" />
-          Resend
+          {{ t('orders.resend.confirm') }}
         </Button>
       </component>
     </component>
@@ -290,14 +289,14 @@
           <CheckCircle class="size-7 text-green-600 dark:text-green-400" />
         </div>
         <div>
-          <DialogTitle class="text-lg">Email resent!</DialogTitle>
+          <DialogTitle class="text-lg">{{ t('orders.resendSuccess.title') }}</DialogTitle>
           <DialogDescription class="mt-1">
-            The order email to <strong>{{ resendSuccessSupplier }}</strong> has been resent successfully.
+            {{ t('orders.resendSuccess.description', { supplier: resendSuccessSupplier }) }}
           </DialogDescription>
         </div>
       </div>
       <DialogFooter class="sm:justify-center">
-        <Button variant="outline" @click="resendSuccessOpen = false">Close</Button>
+        <Button variant="outline" @click="resendSuccessOpen = false">{{ t('common.close') }}</Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -306,16 +305,16 @@
   <component :is="isDesktop ? Dialog : Drawer" v-model:open="mailtoOpen">
     <component :is="isDesktop ? DialogContent : DrawerContent" class="sm:max-w-md">
       <component :is="isDesktop ? DialogHeader : DrawerHeader">
-        <component :is="isDesktop ? DialogTitle : DrawerTitle">Email could not be sent</component>
+        <component :is="isDesktop ? DialogTitle : DrawerTitle">{{ t('orders.mailto.title') }}</component>
         <component :is="isDesktop ? DialogDescription : DrawerDescription">
-          The automatic email failed. You can send it manually using your email client.
+          {{ t('orders.mailto.description') }}
         </component>
       </component>
       <component :is="isDesktop ? DialogFooter : DrawerFooter" :class="['gap-2', !isDesktop && 'px-4 pb-4']">
-        <Button variant="outline" @click="mailtoOpen = false">Close</Button>
+        <Button variant="outline" @click="mailtoOpen = false">{{ t('common.close') }}</Button>
         <Button as="a" :href="mailtoUrl" target="_blank" @click="mailtoOpen = false">
           <MailOpen class="mr-2 size-4" />
-          Open in email client
+          {{ t('orders.mailto.open') }}
         </Button>
       </component>
     </component>
@@ -360,7 +359,7 @@ import { useAuth } from "@/lib/useAuth";
 import { useLocale } from "@/lib/useLocale";
 
 const { loading: authLoading } = useAuth();
-const { locale } = useLocale();
+const { locale, t } = useLocale();
 const isDesktop = useMediaQuery("(min-width: 768px)");
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -396,8 +395,8 @@ const StatusBadge = {
   props: ["status"],
   setup(props: { status: string }) {
     const cfg: Record<string, { label: string; cls: string }> = {
-      draft: { label: "Draft", cls: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" },
-      sent: { label: "Sent", cls: "bg-green-100  text-green-800  dark:bg-green-900/30  dark:text-green-400" },
+      draft: { label: t("orders.status.draft"), cls: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" },
+      sent: { label: t("orders.status.sent"), cls: "bg-green-100  text-green-800  dark:bg-green-900/30  dark:text-green-400" },
     };
     const c = computed(() => cfg[props.status] ?? { label: props.status, cls: "bg-muted text-muted-foreground" });
     return { c };
@@ -406,11 +405,11 @@ const StatusBadge = {
 };
 
 // ─── Filter ───────────────────────────────────────────────────────────────────
-const filters = [
-  { label: "All", value: "all" },
-  { label: "Drafts", value: "draft" },
-  { label: "Sent", value: "sent" },
-];
+const filters = computed(() => [
+  { label: t("orders.filter.all"), value: "all" },
+  { label: t("orders.filter.drafts"), value: "draft" },
+  { label: t("orders.filter.sent"), value: "sent" },
+]);
 const activeFilter = ref("all");
 
 // ─── Shared fetch helper ──────────────────────────────────────────────────────

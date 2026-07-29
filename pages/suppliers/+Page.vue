@@ -3,25 +3,25 @@
     <div class="flex flex-col gap-6">
       <div class="flex items-center justify-between">
         <div>
-          <h1 class="text-2xl font-bold tracking-tight">Suppliers</h1>
-          <p class="text-muted-foreground text-sm">Manage your suppliers and their products.</p>
+          <h1 class="text-2xl font-bold tracking-tight">{{ t('suppliers.title') }}</h1>
+          <p class="text-muted-foreground text-sm">{{ t('suppliers.subtitle') }}</p>
         </div>
         <Button @click="openAddSupplier">
           <Plus class="mr-2 size-4" />
-          Add supplier
+          {{ t('suppliers.add') }}
         </Button>
       </div>
 
       <!-- Search bar -->
       <div class="relative max-w-sm">
         <Search class="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input v-model="searchQuery" placeholder="Search suppliers..." class="pl-9" />
+        <Input v-model="searchQuery" :placeholder="t('suppliers.search')" class="pl-9" />
       </div>
 
       <!-- Mobile: card list -->
       <div class="flex flex-col gap-3 md:hidden">
         <div v-if="!loading && filteredSuppliers.length === 0" class="py-8 text-center text-sm text-muted-foreground">
-          {{ searchQuery ? "No suppliers match your search." : "No suppliers yet." }}
+          {{ searchQuery ? t('suppliers.noMatch') : t('suppliers.empty') }}
         </div>
         <div v-for="supplier in filteredSuppliers" :key="supplier.id" class="rounded-lg border bg-card p-4 shadow-sm">
           <div class="flex items-start justify-between gap-2">
@@ -30,13 +30,13 @@
               <p class="truncate text-sm text-muted-foreground">{{ supplier.email }}</p>
             </div>
             <Badge :variant="supplier.isActive ? 'default' : 'secondary'" class="shrink-0">
-              {{ supplier.isActive ? "Active" : "Inactive" }}
+              {{ supplier.isActive ? t('suppliers.status.active') : t('suppliers.status.inactive') }}
             </Badge>
           </div>
           <div class="mt-3 flex items-center justify-between">
             <Button variant="ghost" size="sm" class="gap-1.5 px-2" @click="openProductsSheet(supplier)">
               <Package class="size-3.5" />
-              {{ supplier.productCount }} product{{ supplier.productCount !== 1 ? "s" : "" }}
+              {{ supplier.productCount }} {{ supplier.productCount === 1 ? t('suppliers.productWord') : t('suppliers.productWordPlural') }}
             </Button>
             <div class="flex gap-1">
               <Button variant="ghost" size="icon" @click="openEditSupplier(supplier)">
@@ -56,29 +56,29 @@
           <TableRow>
             <TableHead>
               <Button variant="ghost" size="sm" class="-ml-3 h-8 gap-1" @click="toggleSort('name')">
-                Name
+                {{ t('suppliers.table.name') }}
                 <ArrowUpDown v-if="sortKey !== 'name'" class="size-3.5 text-muted-foreground" />
                 <ArrowUp v-else-if="sortDir === 'asc'" class="size-3.5" />
                 <ArrowDown v-else class="size-3.5" />
               </Button>
             </TableHead>
-            <TableHead>Email</TableHead>
+            <TableHead>{{ t('suppliers.table.email') }}</TableHead>
             <TableHead>
               <Button variant="ghost" size="sm" class="-ml-3 h-8 gap-1" @click="toggleSort('isActive')">
-                Status
+                {{ t('suppliers.table.status') }}
                 <ArrowUpDown v-if="sortKey !== 'isActive'" class="size-3.5 text-muted-foreground" />
                 <ArrowUp v-else-if="sortDir === 'asc'" class="size-3.5" />
                 <ArrowDown v-else class="size-3.5" />
               </Button>
             </TableHead>
-            <TableHead>Products</TableHead>
+            <TableHead>{{ t('suppliers.table.products') }}</TableHead>
             <TableHead />
           </TableRow>
         </TableHeader>
         <TableBody>
           <TableRow v-if="!loading && filteredSuppliers.length === 0">
             <TableCell colspan="5" class="py-8 text-center text-muted-foreground">
-              {{ searchQuery ? "No suppliers match your search." : "No suppliers yet." }}
+              {{ searchQuery ? t('suppliers.noMatch') : t('suppliers.empty') }}
             </TableCell>
           </TableRow>
           <TableRow v-for="supplier in filteredSuppliers" :key="supplier.id">
@@ -86,7 +86,7 @@
             <TableCell class="text-muted-foreground">{{ supplier.email }}</TableCell>
             <TableCell>
               <Badge :variant="supplier.isActive ? 'default' : 'secondary'">
-                {{ supplier.isActive ? "Active" : "Inactive" }}
+                {{ supplier.isActive ? t('suppliers.status.active') : t('suppliers.status.inactive') }}
               </Badge>
             </TableCell>
             <TableCell>
@@ -116,31 +116,31 @@
     <component :is="isDesktop ? DialogContent : DrawerContent" :class="isDesktop ? 'sm:max-w-md' : ''">
       <component :is="isDesktop ? DialogHeader : DrawerHeader" :class="!isDesktop && 'px-6 text-left'">
         <component :is="isDesktop ? DialogTitle : DrawerTitle">
-          {{ editingSupplier ? "Edit supplier" : "Add supplier" }}
+          {{ editingSupplier ? t('suppliers.editTitle') : t('suppliers.addTitle') }}
         </component>
         <component :is="isDesktop ? DialogDescription : DrawerDescription">
-          {{ editingSupplier ? "Update the supplier details." : "Add a new supplier to the system." }}
+          {{ editingSupplier ? t('suppliers.editDesc') : t('suppliers.addDesc') }}
         </component>
       </component>
       <div :class="['flex flex-col gap-4 py-2', !isDesktop && 'px-6']">
         <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium">Name</label>
+          <label class="text-sm font-medium">{{ t('suppliers.form.name') }}</label>
           <Input v-model="supplierForm.name" placeholder="Supplier name" />
         </div>
         <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium">Email</label>
+          <label class="text-sm font-medium">{{ t('suppliers.form.email') }}</label>
           <Input v-model="supplierForm.email" type="email" placeholder="supplier@example.com" />
         </div>
         <div class="flex items-center gap-2">
           <Checkbox id="supplier-active" v-model="supplierForm.isActive" />
-          <label for="supplier-active" class="cursor-pointer text-sm font-medium">Active</label>
+          <label for="supplier-active" class="cursor-pointer text-sm font-medium">{{ t('suppliers.form.active') }}</label>
         </div>
       </div>
       <component :is="isDesktop ? DialogFooter : DrawerFooter" :class="['mt-2', !isDesktop && 'px-6 pb-6']">
-        <Button variant="outline" :disabled="supplierSaving" @click="supplierFormOpen = false">Cancel</Button>
+        <Button variant="outline" :disabled="supplierSaving" @click="supplierFormOpen = false">{{ t('common.cancel') }}</Button>
         <Button :disabled="supplierSaving" @click="saveSupplier">
           <Loader2 v-if="supplierSaving" class="mr-2 size-4 animate-spin" />
-          {{ editingSupplier ? "Save" : "Add" }}
+          {{ editingSupplier ? t('common.save') : t('common.add') }}
         </Button>
       </component>
     </component>
@@ -150,18 +150,16 @@
   <component :is="isDesktop ? Dialog : Drawer" v-model:open="deleteSupplierOpen">
     <component :is="isDesktop ? DialogContent : DrawerContent" :class="isDesktop ? 'sm:max-w-sm' : ''">
       <component :is="isDesktop ? DialogHeader : DrawerHeader" :class="!isDesktop && 'px-6 text-left'">
-        <component :is="isDesktop ? DialogTitle : DrawerTitle">Remove supplier</component>
+        <component :is="isDesktop ? DialogTitle : DrawerTitle">{{ t('suppliers.delete.title') }}</component>
         <component :is="isDesktop ? DialogDescription : DrawerDescription">
-          Are you sure you want to remove
-          <span class="font-medium text-foreground">{{ deleteSupplierTarget?.name }}</span
-          >? This will also delete all their products and cannot be undone.
+          {{ t('suppliers.delete.description', { name: deleteSupplierTarget?.name ?? '' }) }}
         </component>
       </component>
       <component :is="isDesktop ? DialogFooter : DrawerFooter" :class="['mt-2', !isDesktop && 'px-6 pb-6']">
-        <Button variant="outline" :disabled="deletingSupplier" @click="deleteSupplierOpen = false">Cancel</Button>
+        <Button variant="outline" :disabled="deletingSupplier" @click="deleteSupplierOpen = false">{{ t('common.cancel') }}</Button>
         <Button variant="destructive" :disabled="deletingSupplier" @click="executeDeleteSupplier">
           <Loader2 v-if="deletingSupplier" class="mr-2 size-4 animate-spin" />
-          Remove
+          {{ t('suppliers.delete.confirm') }}
         </Button>
       </component>
     </component>
@@ -172,7 +170,7 @@
     <SheetContent class="flex w-full flex-col gap-0 overflow-hidden sm:max-w-3xl" side="right">
       <SheetHeader class="border-b px-6 pb-4">
         <SheetTitle>{{ selectedSupplier?.name }}</SheetTitle>
-        <SheetDescription>Manage products for this supplier.</SheetDescription>
+        <SheetDescription>{{ t('suppliers.products.subtitle') }}</SheetDescription>
       </SheetHeader>
 
       <div class="flex flex-1 flex-col gap-4 overflow-y-auto px-4 py-4 md:px-6">
@@ -180,23 +178,23 @@
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div class="relative flex-1 sm:max-w-xs">
             <Search class="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input v-model="productSearch" placeholder="Search products..." class="pl-9" />
+            <Input v-model="productSearch" :placeholder="t('suppliers.products.search')" class="pl-9" />
           </div>
           <div class="flex items-center gap-3">
             <span v-if="savingOrder" class="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Loader2 class="size-3 animate-spin" /> Saving order…
+              <Loader2 class="size-3 animate-spin" /> {{ t('suppliers.products.saving') }}
             </span>
             <p v-else class="text-sm text-muted-foreground">
-              {{ productSearch ? `${filteredProducts.length} of ${products.length}` : products.length }}
-              product{{ products.length !== 1 ? "s" : "" }}
+              {{ productSearch ? `${filteredProducts.length} ${t('suppliers.productOf')} ${products.length}` : products.length }}
+              {{ products.length === 1 ? t('suppliers.productWord') : t('suppliers.productWordPlural') }}
             </p>
             <Button size="sm" variant="outline" class="hidden md:flex" :disabled="productsLoading" @click="openMatrixEdit">
               <LayoutGrid class="mr-1.5 size-3.5" />
-              Matrix edit
+              {{ t('suppliers.products.matrixEdit') }}
             </Button>
             <Button size="sm" @click="openAddProduct">
               <Plus class="mr-1.5 size-3.5" />
-              Add product
+              {{ t('suppliers.products.add') }}
             </Button>
           </div>
         </div>
@@ -211,15 +209,15 @@
           @end="onDragEnd"
         >
           <template #header>
-            <div v-if="productsLoading" class="py-6 text-center text-sm text-muted-foreground">Loading...</div>
+            <div v-if="productsLoading" class="py-6 text-center text-sm text-muted-foreground">{{ t('suppliers.products.loading') }}</div>
             <div v-else-if="products.length === 0" class="py-6 text-center text-sm text-muted-foreground">
-              No products yet.
+              {{ t('suppliers.products.empty') }}
             </div>
             <div
               v-else-if="productSearch && filteredProducts.length === 0"
               class="py-6 text-center text-sm text-muted-foreground"
             >
-              No products match your search.
+              {{ t('suppliers.products.noMatch') }}
             </div>
           </template>
           <template #item="{ element: product }">
@@ -246,16 +244,16 @@
               </div>
               <div class="mt-3 flex flex-wrap gap-2 text-sm">
                 <div class="text-muted-foreground">
-                  Stock: <span class="font-medium text-foreground">{{ product.idealStock }}</span>
+                  {{ t('suppliers.products.stock') }} <span class="font-medium text-foreground">{{ product.idealStock }}</span>
                 </div>
                 <div class="text-muted-foreground">
-                  Order: <span class="font-medium text-foreground">{{ product.displayOrder }}</span>
+                  {{ t('suppliers.products.order') }} <span class="font-medium text-foreground">{{ product.displayOrder }}</span>
                 </div>
                 <Badge :variant="product.manualOrder ? 'default' : 'secondary'" class="text-xs">
-                  {{ product.manualOrder ? "Manual" : "Automatic" }}
+                  {{ product.manualOrder ? t('suppliers.products.manual') : t('suppliers.products.automatic') }}
                 </Badge>
                 <Badge :variant="product.isActive ? 'default' : 'secondary'" class="text-xs">
-                  {{ product.isActive ? "Active" : "Inactive" }}
+                  {{ product.isActive ? t('suppliers.status.active') : t('suppliers.status.inactive') }}
                 </Badge>
               </div>
             </div>
@@ -267,11 +265,11 @@
           <TableHeader>
             <TableRow>
               <TableHead class="w-8" />
-              <TableHead>Supplier name</TableHead>
-              <TableHead>Our name</TableHead>
-              <TableHead>Ideal stock</TableHead>
-              <TableHead>Manual</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>{{ t('suppliers.products.col.supplierName') }}</TableHead>
+              <TableHead>{{ t('suppliers.products.col.ourName') }}</TableHead>
+              <TableHead>{{ t('suppliers.products.col.idealStock') }}</TableHead>
+              <TableHead>{{ t('suppliers.products.col.manual') }}</TableHead>
+              <TableHead>{{ t('suppliers.products.col.status') }}</TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
@@ -286,14 +284,14 @@
           >
             <template #header>
               <tr v-if="productsLoading">
-                <td colspan="7" class="p-4 text-center text-sm text-muted-foreground">Loading...</td>
+                <td colspan="7" class="p-4 text-center text-sm text-muted-foreground">{{ t('suppliers.products.loading') }}</td>
               </tr>
               <tr v-else-if="products.length === 0">
-                <td colspan="7" class="p-4 text-center text-sm text-muted-foreground">No products yet.</td>
+                <td colspan="7" class="p-4 text-center text-sm text-muted-foreground">{{ t('suppliers.products.empty') }}</td>
               </tr>
               <tr v-else-if="productSearch && filteredProducts.length === 0">
                 <td colspan="7" class="p-4 text-center text-sm text-muted-foreground">
-                  No products match your search.
+                  {{ t('suppliers.products.noMatch') }}
                 </td>
               </tr>
             </template>
@@ -310,12 +308,12 @@
                 <td class="p-4 align-middle">{{ product.idealStock }}</td>
                 <td class="p-4 align-middle">
                   <Badge :variant="product.manualOrder ? 'default' : 'secondary'">
-                    {{ product.manualOrder ? "Yes" : "No" }}
+                    {{ product.manualOrder ? t('suppliers.products.yes') : t('suppliers.products.no') }}
                   </Badge>
                 </td>
                 <td class="p-4 align-middle">
                   <Badge :variant="product.isActive ? 'default' : 'secondary'">
-                    {{ product.isActive ? "Active" : "Inactive" }}
+                    {{ product.isActive ? t('suppliers.status.active') : t('suppliers.status.inactive') }}
                   </Badge>
                 </td>
                 <td class="p-4 align-middle text-right">
@@ -341,44 +339,44 @@
     <component :is="isDesktop ? DialogContent : DrawerContent" :class="isDesktop ? 'sm:max-w-lg' : ''">
       <component :is="isDesktop ? DialogHeader : DrawerHeader" :class="!isDesktop && 'px-6 text-left'">
         <component :is="isDesktop ? DialogTitle : DrawerTitle">
-          {{ editingProduct ? "Edit product" : "Add product" }}
+          {{ editingProduct ? t('suppliers.product.editTitle') : t('suppliers.product.addTitle') }}
         </component>
         <component :is="isDesktop ? DialogDescription : DrawerDescription">
-          {{ editingProduct ? "Update product details." : "Add a new product for this supplier." }}
+          {{ editingProduct ? t('suppliers.product.editDesc') : t('suppliers.product.addDesc') }}
         </component>
       </component>
       <div :class="['grid gap-4 py-2', isDesktop ? 'grid-cols-2' : 'grid-cols-1 px-6 pb-2']">
         <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium">Supplier name</label>
+          <label class="text-sm font-medium">{{ t('suppliers.product.form.supplierName') }}</label>
           <Input v-model="productForm.supplierName" placeholder="Name on supplier's list" />
         </div>
         <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium">Our name</label>
+          <label class="text-sm font-medium">{{ t('suppliers.product.form.ourName') }}</label>
           <Input v-model="productForm.internalName" placeholder="Internal name" />
         </div>
         <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium">Display order</label>
+          <label class="text-sm font-medium">{{ t('suppliers.product.form.displayOrder') }}</label>
           <Input v-model.number="productForm.displayOrder" type="number" min="0" placeholder="0" />
         </div>
         <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium">Ideal stock</label>
+          <label class="text-sm font-medium">{{ t('suppliers.product.form.idealStock') }}</label>
           <Input v-model.number="productForm.idealStock" type="number" min="0" placeholder="0" />
         </div>
         <div class="flex items-center gap-2">
           <Checkbox id="product-manual" v-model="productForm.manualOrder" />
-          <label for="product-manual" class="cursor-pointer text-sm font-medium">Manual order</label>
+          <label for="product-manual" class="cursor-pointer text-sm font-medium">{{ t('suppliers.product.form.manualOrder') }}</label>
         </div>
         <div class="flex items-center gap-2">
           <Checkbox id="product-active" v-model="productForm.isActive" />
-          <label for="product-active" class="cursor-pointer text-sm font-medium">Active</label>
+          <label for="product-active" class="cursor-pointer text-sm font-medium">{{ t('suppliers.product.form.active') }}</label>
         </div>
       </div>
       <p v-if="productSaveError" :class="['text-sm text-destructive', !isDesktop && 'px-6']">{{ productSaveError }}</p>
       <component :is="isDesktop ? DialogFooter : DrawerFooter" :class="['mt-2', !isDesktop && 'px-6 pb-6']">
-        <Button variant="outline" :disabled="productSaving" @click="productFormOpen = false">Cancel</Button>
+        <Button variant="outline" :disabled="productSaving" @click="productFormOpen = false">{{ t('common.cancel') }}</Button>
         <Button :disabled="productSaving" @click="saveProduct">
           <Loader2 v-if="productSaving" class="mr-2 size-4 animate-spin" />
-          {{ editingProduct ? "Save" : "Add" }}
+          {{ editingProduct ? t('common.save') : t('common.add') }}
         </Button>
       </component>
     </component>
@@ -388,19 +386,19 @@
   <Dialog v-model:open="matrixEditOpen">
     <DialogContent class="flex max-h-[90vh] flex-col sm:max-w-5xl">
       <DialogHeader>
-        <DialogTitle>Matrix edit — {{ selectedSupplier?.name }}</DialogTitle>
-        <DialogDescription>Edit all products inline. Only changed rows are saved.</DialogDescription>
+        <DialogTitle>{{ t('suppliers.products.matrixEdit') }} — {{ selectedSupplier?.name }}</DialogTitle>
+        <DialogDescription>{{ t('suppliers.products.matrixDesc') }}</DialogDescription>
       </DialogHeader>
       <div class="flex-1 overflow-auto rounded border">
         <table class="w-full text-sm">
           <thead class="sticky top-0 z-10 bg-muted/80 backdrop-blur">
             <tr class="border-b">
               <th class="w-8 p-2" />
-              <th class="p-2 text-left font-medium text-muted-foreground">Supplier name</th>
-              <th class="p-2 text-left font-medium text-muted-foreground">Our name</th>
-              <th class="p-2 text-left font-medium text-muted-foreground">Ideal stock</th>
-              <th class="p-2 text-center font-medium text-muted-foreground">Manual</th>
-              <th class="p-2 text-center font-medium text-muted-foreground">Active</th>
+              <th class="p-2 text-left font-medium text-muted-foreground">{{ t('suppliers.products.col.supplierName') }}</th>
+              <th class="p-2 text-left font-medium text-muted-foreground">{{ t('suppliers.products.col.ourName') }}</th>
+              <th class="p-2 text-left font-medium text-muted-foreground">{{ t('suppliers.products.col.idealStock') }}</th>
+              <th class="p-2 text-center font-medium text-muted-foreground">{{ t('suppliers.products.col.manual') }}</th>
+              <th class="p-2 text-center font-medium text-muted-foreground">{{ t('suppliers.product.form.active') }}</th>
             </tr>
           </thead>
           <draggable
@@ -412,7 +410,7 @@
           >
             <template #header>
               <tr v-if="matrixRows.length === 0">
-                <td colspan="6" class="p-4 text-center text-muted-foreground">No products.</td>
+                <td colspan="6" class="p-4 text-center text-muted-foreground">{{ t('suppliers.products.empty') }}</td>
               </tr>
             </template>
             <template #item="{ element: row, index: i }">
@@ -431,10 +429,10 @@
         </table>
       </div>
       <DialogFooter class="mt-2">
-        <Button variant="outline" :disabled="matrixSaving" @click="matrixEditOpen = false">Cancel</Button>
+        <Button variant="outline" :disabled="matrixSaving" @click="matrixEditOpen = false">{{ t('common.cancel') }}</Button>
         <Button :disabled="matrixSaving" @click="saveMatrixEdit">
           <Loader2 v-if="matrixSaving" class="mr-2 size-4 animate-spin" />
-          Save all
+          {{ t('suppliers.products.matrixSaveAll') }}
         </Button>
       </DialogFooter>
     </DialogContent>
@@ -444,18 +442,16 @@
   <component :is="isDesktop ? Dialog : Drawer" v-model:open="deleteProductOpen">
     <component :is="isDesktop ? DialogContent : DrawerContent" :class="isDesktop ? 'sm:max-w-sm' : ''">
       <component :is="isDesktop ? DialogHeader : DrawerHeader" :class="!isDesktop && 'px-6 text-left'">
-        <component :is="isDesktop ? DialogTitle : DrawerTitle">Remove product</component>
+        <component :is="isDesktop ? DialogTitle : DrawerTitle">{{ t('suppliers.product.delete.title') }}</component>
         <component :is="isDesktop ? DialogDescription : DrawerDescription">
-          Are you sure you want to remove
-          <span class="font-medium text-foreground">{{ deleteProductTarget?.internalName }}</span
-          >? This cannot be undone.
+          {{ t('suppliers.product.delete.description', { name: deleteProductTarget?.internalName ?? '' }) }}
         </component>
       </component>
       <component :is="isDesktop ? DialogFooter : DrawerFooter" :class="['mt-2', !isDesktop && 'px-6 pb-6']">
-        <Button variant="outline" :disabled="deletingProduct" @click="deleteProductOpen = false">Cancel</Button>
+        <Button variant="outline" :disabled="deletingProduct" @click="deleteProductOpen = false">{{ t('common.cancel') }}</Button>
         <Button variant="destructive" :disabled="deletingProduct" @click="executeDeleteProduct">
           <Loader2 v-if="deletingProduct" class="mr-2 size-4 animate-spin" />
-          Remove
+          {{ t('suppliers.product.delete.confirm') }}
         </Button>
       </component>
     </component>
@@ -504,6 +500,9 @@ import {
 } from "@/components/ui/drawer";
 import { apiFetch } from "@/lib/apiFetch";
 import { useAuth } from "@/lib/useAuth";
+import { useLocale } from "@/lib/useLocale";
+
+const { t } = useLocale();
 
 interface Supplier {
   id: string;
@@ -760,7 +759,7 @@ async function saveProduct() {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        productSaveError.value = (err as any).message ?? `Save failed (${res.status})`;
+        productSaveError.value = (err as any).message ?? t("suppliers.product.saveFailed", { status: res.status });
         return;
       }
       // Update in place — no re-fetch needed
@@ -773,7 +772,7 @@ async function saveProduct() {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        productSaveError.value = (err as any).message ?? `Save failed (${res.status})`;
+        productSaveError.value = (err as any).message ?? t("suppliers.product.saveFailed", { status: res.status });
         return;
       }
       await fetchProducts(selectedSupplier.value.id);

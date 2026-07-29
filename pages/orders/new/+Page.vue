@@ -2,14 +2,14 @@
   <!-- ─── Step 1: Pick a supplier ─────────────────────────────────────────── -->
   <div v-if="!selectedSupplier" class="flex flex-col gap-6">
     <div>
-      <h1 class="text-2xl font-bold tracking-tight">New order</h1>
-      <p class="text-sm text-muted-foreground">Choose a supplier to order from.</p>
+      <h1 class="text-2xl font-bold tracking-tight">{{ t('newOrder.title') }}</h1>
+      <p class="text-sm text-muted-foreground">{{ t('newOrder.subtitle') }}</p>
     </div>
 
     <!-- Search -->
     <div class="relative max-w-sm">
       <Search class="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-      <Input v-model="supplierSearch" placeholder="Search suppliers…" class="pl-9" />
+      <Input v-model="supplierSearch" :placeholder="t('newOrder.searchPlaceholder')" class="pl-9" />
     </div>
 
     <!-- Loading -->
@@ -19,7 +19,7 @@
 
     <!-- Empty -->
     <p v-else-if="filteredSuppliers.length === 0" class="text-sm text-muted-foreground">
-      {{ supplierSearch ? "No suppliers match your search." : "No active suppliers found." }}
+      {{ supplierSearch ? t('newOrder.noMatch') : t('newOrder.noSuppliers') }}
     </p>
 
     <!-- Grid -->
@@ -42,7 +42,7 @@
           <p class="truncate font-semibold leading-tight">{{ supplier.name }}</p>
           <p v-if="supplier.description" class="truncate text-sm text-muted-foreground">{{ supplier.description }}</p>
           <p class="mt-1 text-xs text-muted-foreground">
-            {{ supplier.productCount }} product{{ supplier.productCount !== 1 ? "s" : "" }}
+            {{ supplier.productCount }} {{ supplier.productCount !== 1 ? t('newOrder.productWordPlural') : t('newOrder.productWord') }}
           </p>
         </div>
 
@@ -60,7 +60,7 @@
       </Button>
       <div class="flex-1">
         <h1 class="text-2xl font-bold tracking-tight">{{ selectedSupplier.name }}</h1>
-        <p class="text-sm text-muted-foreground">Fill in the quantities for this order.</p>
+        <p class="text-sm text-muted-foreground">{{ t('newOrder.step2.subtitle') }}</p>
       </div>
       <Button
         variant="outline"
@@ -71,7 +71,7 @@
       >
         <Loader2 v-if="generating" class="mr-1.5 size-4 animate-spin" />
         <Sparkles v-else class="mr-1.5 size-4" />
-        {{ generating ? "Generating…" : "Generate Template" }}
+        {{ generating ? t('newOrder.generating') : t('newOrder.generateTemplate') }}
       </Button>
     </div>
 
@@ -82,7 +82,7 @@
 
     <!-- Empty -->
     <p v-else-if="filteredProducts.length === 0" class="text-sm text-muted-foreground">
-      This supplier has no active products.
+      {{ t('newOrder.noProducts') }}
     </p>
 
     <!-- Product rows -->
@@ -187,12 +187,12 @@
           <span v-else-if="saveStatus === 'offline'" class="text-amber-500">{{ t('newOrder.offline') }}</span>
           <span v-else-if="saveStatus === 'saved'" class="text-green-500">{{ t('newOrder.saved') }}</span>
           <span v-else class="text-muted-foreground"
-            >{{ orderLines.length }} item{{ orderLines.length !== 1 ? "s" : "" }}</span
+            >{{ orderLines.length }} {{ orderLines.length !== 1 ? t('newOrder.itemWordPlural') : t('newOrder.itemWord') }}</span
           >
         </div>
         <Button :disabled="orderLines.length === 0" @click="reviewOpen = true">
           <ClipboardList class="mr-2 size-4" />
-          Review order
+          {{ t('newOrder.reviewOrder') }}
         </Button>
       </div>
     </div>
@@ -202,14 +202,14 @@
   <component :is="isDesktop ? Dialog : Drawer" v-model:open="reviewOpen">
     <component :is="isDesktop ? DialogContent : DrawerContent" :class="isDesktop ? 'sm:max-w-lg' : ''">
       <component :is="isDesktop ? DialogHeader : DrawerHeader" :class="!isDesktop && 'px-6 text-left'">
-        <component :is="isDesktop ? DialogTitle : DrawerTitle">Order for {{ selectedSupplier?.name }}</component>
-        <component :is="isDesktop ? DialogDescription : DrawerDescription">Review your order before sending.</component>
+        <component :is="isDesktop ? DialogTitle : DrawerTitle">{{ t('newOrder.review.title', { supplier: selectedSupplier?.name ?? '' }) }}</component>
+        <component :is="isDesktop ? DialogDescription : DrawerDescription">{{ t('newOrder.review.subtitle') }}</component>
       </component>
 
       <div :class="['mt-3', !isDesktop && 'px-6']">
         <Textarea
           v-model="notes"
-          placeholder="Additional notes (optional)…"
+          :placeholder="t('newOrder.review.notes')"
           class="min-h-[80px] resize-none text-sm"
         />
       </div>
@@ -218,8 +218,8 @@
         <table class="w-full text-sm">
           <thead class="sticky top-0 bg-muted/80 backdrop-blur">
             <tr>
-              <th class="px-3 py-2 text-left font-medium text-muted-foreground">Product</th>
-              <th class="px-3 py-2 text-right font-medium text-muted-foreground">Qty</th>
+              <th class="px-3 py-2 text-left font-medium text-muted-foreground">{{ t('newOrder.review.product') }}</th>
+              <th class="px-3 py-2 text-right font-medium text-muted-foreground">{{ t('newOrder.review.qty') }}</th>
             </tr>
           </thead>
           <tbody class="divide-y">
@@ -237,10 +237,10 @@
       </div>
 
       <component :is="isDesktop ? DialogFooter : DrawerFooter" :class="['mt-2', !isDesktop && 'px-6 pb-6']">
-        <Button variant="outline" @click="reviewOpen = false">Edit</Button>
+        <Button variant="outline" @click="reviewOpen = false">{{ t('newOrder.review.edit') }}</Button>
         <Button :disabled="submitting" @click="submitOrder">
           <Loader2 v-if="submitting" class="mr-2 size-4 animate-spin" />
-          Send order
+          {{ t('newOrder.review.send') }}
         </Button>
       </component>
     </component>
@@ -280,10 +280,10 @@
           <div class="flex size-8 shrink-0 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900">
             <Sparkles class="size-4 text-purple-600 dark:text-purple-400" />
           </div>
-          <component :is="isDesktop ? DialogTitle : DrawerTitle">AI Order Suggestion</component>
+          <component :is="isDesktop ? DialogTitle : DrawerTitle">{{ t('newOrder.ai.title') }}</component>
         </div>
         <component :is="isDesktop ? DialogDescription : DrawerDescription">
-          Generated based on your past orders and upcoming Belgian holidays.
+          {{ t('newOrder.ai.subtitle') }}
         </component>
       </component>
 
@@ -293,10 +293,9 @@
           !isDesktop && 'mx-6',
         ]"
       >
-        <p class="font-semibold">⚠️ This is a suggestion only</p>
+        <p class="font-semibold">{{ t('newOrder.ai.warning') }}</p>
         <p class="mt-0.5 text-amber-800 dark:text-amber-300">
-          Quantities are estimated by AI — not guaranteed to be correct. Review carefully. You can edit everything after
-          accepting.
+          {{ t('newOrder.ai.warningDetail') }}
         </p>
       </div>
 
@@ -304,14 +303,14 @@
         v-if="suggestions.length === 0"
         :class="['py-6 text-center text-sm text-muted-foreground', !isDesktop && 'px-6']"
       >
-        No suggestions could be generated for this supplier.
+        {{ t('newOrder.ai.noSuggestions') }}
       </div>
       <div v-else :class="['overflow-y-auto rounded-md border', isDesktop ? 'max-h-72' : 'mx-6 max-h-[40vh]']">
         <table class="w-full text-sm">
           <thead class="sticky top-0 bg-muted/80 backdrop-blur">
             <tr>
-              <th class="px-3 py-2 text-left font-medium text-muted-foreground">Product</th>
-              <th class="px-3 py-2 text-right font-medium text-muted-foreground">Suggested Qty</th>
+              <th class="px-3 py-2 text-left font-medium text-muted-foreground">{{ t('newOrder.ai.product') }}</th>
+              <th class="px-3 py-2 text-right font-medium text-muted-foreground">{{ t('newOrder.ai.suggestedQty') }}</th>
             </tr>
           </thead>
           <tbody class="divide-y">
@@ -339,7 +338,7 @@
       <component :is="isDesktop ? DialogFooter : DrawerFooter" :class="['mt-2', !isDesktop && 'px-6 pb-6']">
         <Button variant="outline" @click="rejectSuggestion">
           <X class="mr-2 size-4" />
-          Reject
+          {{ t('newOrder.ai.reject') }}
         </Button>
         <Button
           class="bg-purple-600 text-white hover:bg-purple-700 dark:bg-purple-700 dark:hover:bg-purple-600"
@@ -347,7 +346,7 @@
           @click="acceptSuggestion"
         >
           <Check class="mr-2 size-4" />
-          Accept Suggestion
+          {{ t('newOrder.ai.accept') }}
         </Button>
       </component>
     </component>
@@ -361,16 +360,16 @@
           <CheckCircle class="size-7 text-green-600 dark:text-green-400" />
         </div>
         <div>
-          <DialogTitle class="text-lg">Order sent!</DialogTitle>
+          <DialogTitle class="text-lg">{{ t('newOrder.success.title') }}</DialogTitle>
           <DialogDescription class="mt-1">
-            Your order to <strong>{{ lastOrderSupplier }}</strong> has been placed.
+            {{ t('newOrder.success.description', { supplier: lastOrderSupplier }) }}
           </DialogDescription>
         </div>
       </div>
       <DialogFooter class="sm:justify-center gap-2">
-        <Button variant="outline" @click="newOrder">New order</Button>
+        <Button variant="outline" @click="newOrder">{{ t('newOrder.success.newOrder') }}</Button>
         <Button as-child>
-          <a href="/orders">View orders</a>
+          <a href="/orders">{{ t('newOrder.success.viewOrders') }}</a>
         </Button>
       </DialogFooter>
     </DialogContent>

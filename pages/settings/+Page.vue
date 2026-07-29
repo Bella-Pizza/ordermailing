@@ -104,7 +104,7 @@
             variant="outline"
             size="icon"
             @click="toggleTheme"
-            :aria-label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
+            :aria-label="isDark ? t('settings.appearance.switchLight') : t('settings.appearance.switchDark')"
           >
             <Sun v-if="isDark" class="size-4" />
             <Moon v-else class="size-4" />
@@ -115,7 +115,7 @@
             <p class="text-sm font-medium">{{ t('settings.appearance.nolanMode') }}</p>
             <p class="text-xs text-muted-foreground">{{ t('settings.appearance.nolanModeDesc') }}</p>
           </div>
-          <Switch v-model="nolanMode" aria-label="Toggle Nolan mode" />
+          <Switch v-model="nolanMode" :aria-label="t('settings.appearance.toggleNolan')" />
         </div>
       </div>
     </div>
@@ -246,20 +246,19 @@
     <!-- ─── Copy products from another store (admin only) ────────────────────── -->
     <div v-if="userRole === 'admin' && stores.length > 1" class="rounded-lg border">
       <div class="flex flex-col gap-1 border-b px-6 py-4">
-        <h2 class="font-semibold">Copy products from another store</h2>
+        <h2 class="font-semibold">{{ t('settings.copyStore.title') }}</h2>
         <p class="text-sm text-muted-foreground">
-          Replace <span class="font-medium text-foreground">{{ currentStore?.name ?? "this store" }}</span>'s suppliers
-          and products with a copy from another store.
-          <span class="font-medium text-destructive">This overwrites all current suppliers and products.</span>
+          {{ t('settings.copyStore.subtitlePrefix') }} <span class="font-medium text-foreground">{{ currentStore?.name ?? t('settings.copyStore.thisStore') }}</span>{{ t('settings.copyStore.subtitleSuffix') }}
+          <span class="font-medium text-destructive">{{ t('settings.copyStore.warning') }}</span>
         </p>
       </div>
       <div class="flex flex-col gap-4 px-6 py-5">
         <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium">Copy from</label>
+          <label class="text-sm font-medium">{{ t('settings.copyStore.copyFrom') }}</label>
           <DropdownMenu>
             <DropdownMenuTrigger as-child>
               <Button variant="outline" class="w-full justify-between font-normal sm:w-72">
-                <span>{{ copySourceName || "Select a store…" }}</span>
+                <span>{{ copySourceName || t('settings.copyStore.select') }}</span>
                 <ChevronsUpDown class="ml-2 size-4 opacity-60" />
               </Button>
             </DropdownMenuTrigger>
@@ -278,13 +277,13 @@
         <div class="flex items-center gap-3">
           <Button variant="destructive" :disabled="!copySourceId || copying" @click="copyConfirmOpen = true">
             <Loader2 v-if="copying" class="mr-2 size-4 animate-spin" />
-            Overwrite &amp; copy
+            {{ t('settings.copyStore.confirm') }}
           </Button>
           <span
             v-if="copySuccess"
             class="flex items-center gap-1.5 text-sm text-green-600"
           >
-            <CheckCircle class="size-4" /> Copied {{ copySuccess.suppliers }} suppliers, {{ copySuccess.products }} products
+            <CheckCircle class="size-4" /> {{ t('settings.copyStore.success', { suppliers: copySuccess.suppliers, products: copySuccess.products }) }}
           </span>
         </div>
       </div>
@@ -295,17 +294,16 @@
   <Dialog v-model:open="copyConfirmOpen">
     <DialogContent class="sm:max-w-md">
       <DialogHeader>
-        <DialogTitle>Overwrite products?</DialogTitle>
+        <DialogTitle>{{ t('settings.copyStore.dialog.title') }}</DialogTitle>
         <DialogDescription>
-          This permanently replaces all suppliers and products of
-          "{{ currentStore?.name ?? "this store" }}" with a copy from "{{ copySourceName }}". This cannot be undone.
+          {{ t('settings.copyStore.dialog.description', { store: currentStore?.name ?? t('settings.copyStore.thisStore'), source: copySourceName }) }}
         </DialogDescription>
       </DialogHeader>
       <DialogFooter class="mt-2">
-        <Button variant="outline" :disabled="copying" @click="copyConfirmOpen = false">Cancel</Button>
+        <Button variant="outline" :disabled="copying" @click="copyConfirmOpen = false">{{ t('settings.copyStore.dialog.cancel') }}</Button>
         <Button variant="destructive" :disabled="copying" @click="runCopyProducts">
           <Loader2 v-if="copying" class="mr-2 size-4 animate-spin" />
-          Overwrite &amp; copy
+          {{ t('settings.copyStore.dialog.confirm') }}
         </Button>
       </DialogFooter>
     </DialogContent>

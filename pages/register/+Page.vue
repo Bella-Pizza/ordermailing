@@ -7,8 +7,8 @@
         >
           <Mail class="size-6" />
         </div>
-        <h1 class="text-2xl font-bold">Create your account</h1>
-        <p class="mt-1 text-sm text-muted-foreground">Complete your registration for Ordermailing</p>
+        <h1 class="text-2xl font-bold">{{ t('register.title') }}</h1>
+        <p class="mt-1 text-sm text-muted-foreground">{{ t('register.subtitle') }}</p>
       </div>
 
       <div
@@ -20,7 +20,7 @@
 
       <form v-else class="flex flex-col gap-4" @submit.prevent="handleSubmit">
         <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium" for="email">Email address</label>
+          <label class="text-sm font-medium" for="email">{{ t('register.email') }}</label>
           <Input
             id="email"
             v-model="email"
@@ -32,12 +32,12 @@
         </div>
 
         <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium" for="name">Full name</label>
+          <label class="text-sm font-medium" for="name">{{ t('register.name') }}</label>
           <Input id="name" v-model="name" type="text" placeholder="John Doe" required :disabled="submitting" />
         </div>
 
         <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium" for="password">Password</label>
+          <label class="text-sm font-medium" for="password">{{ t('register.password') }}</label>
           <Input
             id="password"
             v-model="password"
@@ -50,7 +50,7 @@
         </div>
 
         <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium" for="confirm">Confirm password</label>
+          <label class="text-sm font-medium" for="confirm">{{ t('register.confirmPassword') }}</label>
           <Input
             id="confirm"
             v-model="confirmPassword"
@@ -59,7 +59,7 @@
             required
             :disabled="submitting"
           />
-          <p v-if="passwordMismatch" class="text-xs text-destructive">Passwords do not match.</p>
+          <p v-if="passwordMismatch" class="text-xs text-destructive">{{ t('register.passwordMismatch') }}</p>
         </div>
 
         <div
@@ -71,7 +71,7 @@
 
         <Button type="submit" class="w-full" :disabled="submitting || tokenLoading">
           <Loader2 v-if="submitting" class="mr-2 size-4 animate-spin" />
-          Create account
+          {{ t('register.submit') }}
         </Button>
       </form>
     </div>
@@ -85,6 +85,9 @@ import { signInWithCustomToken } from "firebase/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { auth } from "@/lib/firebase";
+import { useLocale } from "@/lib/useLocale";
+
+const { t } = useLocale();
 
 const token = ref("");
 
@@ -104,7 +107,7 @@ onMounted(async () => {
   token.value = new URLSearchParams(window.location.search).get("token") ?? "";
 
   if (!token.value) {
-    tokenError.value = "No registration token found. Please use the link from your invitation email.";
+    tokenError.value = t("register.noToken");
     tokenLoading.value = false;
     return;
   }
@@ -112,7 +115,7 @@ onMounted(async () => {
     const res = await fetch(`/api/users/invite/${token.value}`);
     if (!res.ok) throw new Error();
   } catch {
-    tokenError.value = "This registration link is invalid or has already been used.";
+    tokenError.value = t("register.invalidToken");
   } finally {
     tokenLoading.value = false;
   }
@@ -130,14 +133,14 @@ async function handleSubmit() {
     });
     if (!res.ok) {
       const err = await res.json();
-      throw new Error(err.message ?? "Registration failed.");
+      throw new Error(err.message ?? t("register.failed"));
     }
     const data = await res.json();
     // Sign in with the custom token returned by the backend
     await signInWithCustomToken(auth, data.customToken);
     window.location.href = "/";
   } catch (err: any) {
-    submitError.value = err.message ?? "Something went wrong. Please try again.";
+    submitError.value = err.message ?? t("register.unexpected");
   } finally {
     submitting.value = false;
   }

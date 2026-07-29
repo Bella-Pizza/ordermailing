@@ -3,13 +3,13 @@
     <div class="flex flex-col gap-6">
       <div class="flex items-center justify-between">
         <div>
-          <h1 class="text-2xl font-bold tracking-tight">Users</h1>
-          <p class="text-muted-foreground text-sm">Manage who has access to this application.</p>
+          <h1 class="text-2xl font-bold tracking-tight">{{ t('users.title') }}</h1>
+          <p class="text-muted-foreground text-sm">{{ t('users.subtitle') }}</p>
         </div>
         <Button :disabled="inviteGenerating" @click="generateInvite">
           <Loader2 v-if="inviteGenerating" class="mr-2 size-4 animate-spin" />
           <UserPlus v-else class="mr-2 size-4" />
-          Add user
+          {{ t('users.addUser') }}
         </Button>
       </div>
 
@@ -17,17 +17,17 @@
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>Email</TableHead>
-            <TableHead>Role</TableHead>
-            <TableHead>Stores</TableHead>
-            <TableHead>Added</TableHead>
+            <TableHead>{{ t('users.table.name') }}</TableHead>
+            <TableHead>{{ t('users.table.email') }}</TableHead>
+            <TableHead>{{ t('users.table.role') }}</TableHead>
+            <TableHead>{{ t('users.table.stores') }}</TableHead>
+            <TableHead>{{ t('users.table.added') }}</TableHead>
             <TableHead />
           </TableRow>
         </TableHeader>
         <TableBody>
           <TableRow v-if="!loading && users.length === 0">
-            <TableCell colspan="6" class="py-8 text-center text-muted-foreground">No users found.</TableCell>
+            <TableCell colspan="6" class="py-8 text-center text-muted-foreground">{{ t('users.empty') }}</TableCell>
           </TableRow>
           <TableRow v-for="user in users" :key="user.id">
             <TableCell class="font-medium">{{ user.name }}</TableCell>
@@ -71,13 +71,13 @@
                   class="flex items-center gap-1.5 rounded px-1.5 py-0.5 outline-none transition-colors hover:bg-muted disabled:pointer-events-none"
                 >
                   <Badge variant="secondary">
-                    <template v-if="user.role === 'admin'">All stores</template>
+                    <template v-if="user.role === 'admin'">{{ t('users.allStores') }}</template>
                     <template v-else>{{ storeSummary(user) }}</template>
                   </Badge>
                   <ChevronsUpDown v-if="user.role !== 'admin'" class="size-3.5 text-muted-foreground" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
-                  <DropdownMenuLabel>Assign stores</DropdownMenuLabel>
+                  <DropdownMenuLabel>{{ t('users.assignStores') }}</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     v-for="s in stores"
@@ -89,7 +89,7 @@
                     <span v-else class="size-3.5" />
                     <span class="flex-1 truncate">{{ s.name }}</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem v-if="stores.length === 0" disabled>No stores yet</DropdownMenuItem>
+                  <DropdownMenuItem v-if="stores.length === 0" disabled>{{ t('users.noStoresYet') }}</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </TableCell>
@@ -109,19 +109,16 @@
   <component :is="isDesktop ? Dialog : Drawer" v-model:open="deleteOpen">
     <component :is="isDesktop ? DialogContent : DrawerContent" class="sm:max-w-sm">
       <component :is="isDesktop ? DialogHeader : DrawerHeader">
-        <component :is="isDesktop ? DialogTitle : DrawerTitle">Remove user</component>
+        <component :is="isDesktop ? DialogTitle : DrawerTitle">{{ t('users.delete.title') }}</component>
         <component :is="isDesktop ? DialogDescription : DrawerDescription">
-          Are you sure you want to remove
-          <span class="font-medium text-foreground">{{ deleteTarget?.name }}</span>
-          (<span class="text-foreground">{{ deleteTarget?.email }}</span
-          >)? This action cannot be undone.
+          {{ t('users.delete.description', { name: deleteTarget?.name ?? '', email: deleteTarget?.email ?? '' }) }}
         </component>
       </component>
       <component :is="isDesktop ? DialogFooter : DrawerFooter" :class="['mt-2', !isDesktop && 'px-4 pb-4']">
-        <Button variant="outline" :disabled="deleting" @click="deleteOpen = false">Cancel</Button>
+        <Button variant="outline" :disabled="deleting" @click="deleteOpen = false">{{ t('users.delete.cancel') }}</Button>
         <Button variant="destructive" :disabled="deleting" @click="executeDelete">
           <Loader2 v-if="deleting" class="mr-2 size-4 animate-spin" />
-          Remove
+          {{ t('users.delete.confirm') }}
         </Button>
       </component>
     </component>
@@ -131,9 +128,9 @@
   <Dialog v-model:open="inviteOpen">
     <DialogContent class="sm:max-w-md">
       <DialogHeader>
-        <DialogTitle>Registration link</DialogTitle>
+        <DialogTitle>{{ t('users.invite.title') }}</DialogTitle>
         <DialogDescription>
-          Share this link with the person you want to invite. It can only be used once.
+          {{ t('users.invite.description') }}
         </DialogDescription>
       </DialogHeader>
       <div class="flex flex-col gap-3 py-2">
@@ -144,10 +141,10 @@
             <Copy v-else class="size-4" />
           </Button>
         </div>
-        <p class="text-xs text-muted-foreground">The link expires as soon as it is used to register.</p>
+        <p class="text-xs text-muted-foreground">{{ t('users.invite.expires') }}</p>
       </div>
       <DialogFooter>
-        <Button variant="outline" @click="closeInviteDialog">Close</Button>
+        <Button variant="outline" @click="closeInviteDialog">{{ t('users.invite.close') }}</Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -201,7 +198,7 @@ interface AppUser {
 }
 
 const { currentUser, loading: authLoading } = useAuth();
-const { locale } = useLocale();
+const { locale, t } = useLocale();
 const { stores, fetchStores } = useStore();
 const isDesktop = useMediaQuery("(min-width: 768px)");
 
@@ -245,9 +242,9 @@ async function fetchUsers() {
 
 function storeSummary(user: AppUser) {
   const ids = user.storeIds ?? [];
-  if (ids.length === 0) return "No stores";
-  if (ids.length === 1) return stores.value.find((s) => s.id === ids[0])?.name ?? "1 store";
-  return `${ids.length} stores`;
+  if (ids.length === 0) return t("users.noStores");
+  if (ids.length === 1) return stores.value.find((s) => s.id === ids[0])?.name ?? t("users.oneStore");
+  return t("users.storeCount", { n: ids.length });
 }
 
 async function toggleStore(user: AppUser, storeId: string) {

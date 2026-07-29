@@ -3,31 +3,31 @@
     <div class="flex flex-col gap-6">
       <div class="flex items-center justify-between">
         <div>
-          <h1 class="text-2xl font-bold tracking-tight">Stores</h1>
+          <h1 class="text-2xl font-bold tracking-tight">{{ t('stores.title') }}</h1>
           <p class="text-muted-foreground text-sm">
-            Manage your stores. Each store has its own suppliers, products and order emails.
+            {{ t('stores.subtitle') }}
           </p>
         </div>
         <Button @click="openCreate">
           <Plus class="mr-2 size-4" />
-          Add store
+          {{ t('stores.add') }}
         </Button>
       </div>
 
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>Address</TableHead>
-            <TableHead>VAT</TableHead>
-            <TableHead>Phone</TableHead>
-            <TableHead>Contact email</TableHead>
+            <TableHead>{{ t('stores.table.name') }}</TableHead>
+            <TableHead>{{ t('stores.table.address') }}</TableHead>
+            <TableHead>{{ t('stores.table.vat') }}</TableHead>
+            <TableHead>{{ t('stores.table.phone') }}</TableHead>
+            <TableHead>{{ t('stores.table.contactEmail') }}</TableHead>
             <TableHead />
           </TableRow>
         </TableHeader>
         <TableBody>
           <TableRow v-if="!loading && stores.length === 0">
-            <TableCell colspan="6" class="py-8 text-center text-muted-foreground">No stores yet.</TableCell>
+            <TableCell colspan="6" class="py-8 text-center text-muted-foreground">{{ t('stores.empty') }}</TableCell>
           </TableRow>
           <TableRow v-for="store in stores" :key="store.id">
             <TableCell class="font-medium">{{ store.name }}</TableCell>
@@ -45,16 +45,16 @@
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem @click="openEdit(store)">
                     <Pencil class="mr-2 size-4" />
-                    Edit details
+                    {{ t('stores.menu.edit') }}
                   </DropdownMenuItem>
                   <DropdownMenuItem @click="openCopy(store)">
                     <CopyIcon class="mr-2 size-4" />
-                    Copy products from…
+                    {{ t('stores.menu.copy') }}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem class="text-destructive focus:text-destructive" @click="confirmDelete(store)">
                     <Trash2 class="mr-2 size-4" />
-                    Delete store
+                    {{ t('stores.menu.delete') }}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -69,49 +69,49 @@
   <Dialog v-model:open="formOpen">
     <DialogContent class="sm:max-w-md">
       <DialogHeader>
-        <DialogTitle>{{ editingId ? "Edit store" : "New store" }}</DialogTitle>
+        <DialogTitle>{{ editingId ? t('stores.form.editTitle') : t('stores.form.newTitle') }}</DialogTitle>
         <DialogDescription>
-          These details appear at the bottom of every order email sent for this store.
+          {{ t('stores.form.description') }}
         </DialogDescription>
       </DialogHeader>
       <div class="flex flex-col gap-3 py-1">
         <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium">Name</label>
+          <label class="text-sm font-medium">{{ t('stores.form.name') }}</label>
           <Input v-model="form.name" placeholder="Bella Pizza — Center" />
         </div>
         <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium">Address</label>
+          <label class="text-sm font-medium">{{ t('stores.form.address') }}</label>
           <Input v-model="form.address" placeholder="Main Street 1, 8000 Bruges" />
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div class="flex flex-col gap-1.5">
-            <label class="text-sm font-medium">VAT number</label>
+            <label class="text-sm font-medium">{{ t('stores.form.vat') }}</label>
             <Input v-model="form.vatNumber" placeholder="BE0123.456.789" />
           </div>
           <div class="flex flex-col gap-1.5">
-            <label class="text-sm font-medium">Phone</label>
+            <label class="text-sm font-medium">{{ t('stores.form.phone') }}</label>
             <Input v-model="form.phone" placeholder="+32 470 00 00 00" />
           </div>
         </div>
         <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium">Contact email</label>
+          <label class="text-sm font-medium">{{ t('stores.form.contactEmail') }}</label>
           <Input v-model="form.contactEmail" type="email" placeholder="store@example.com" />
-          <p class="text-xs text-muted-foreground">Order emails are CC'd here and replies go to this address.</p>
+          <p class="text-xs text-muted-foreground">{{ t('stores.form.contactEmailHint') }}</p>
         </div>
 
         <!-- Copy products on creation -->
         <div v-if="!editingId && stores.length > 0" class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium">Copy suppliers &amp; products from</label>
+          <label class="text-sm font-medium">{{ t('stores.form.copyFrom') }}</label>
           <DropdownMenu>
             <DropdownMenuTrigger as-child>
               <Button variant="outline" class="justify-between font-normal">
-                <span>{{ copyFromName || "Start empty" }}</span>
+                <span>{{ copyFromName || t('stores.form.startEmpty') }}</span>
                 <ChevronsUpDown class="ml-2 size-4 opacity-60" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" class="w-56">
               <DropdownMenuItem @click="form.copyFromStoreId = ''">
-                <span class="flex-1">Start empty</span>
+                <span class="flex-1">{{ t('stores.form.startEmpty') }}</span>
                 <Check v-if="!form.copyFromStoreId" class="ml-2 size-4" />
               </DropdownMenuItem>
               <DropdownMenuSeparator />
@@ -124,10 +124,10 @@
         </div>
       </div>
       <DialogFooter>
-        <Button variant="outline" :disabled="saving" @click="formOpen = false">Cancel</Button>
+        <Button variant="outline" :disabled="saving" @click="formOpen = false">{{ t('stores.form.cancel') }}</Button>
         <Button :disabled="saving || !form.name.trim()" @click="saveStore">
           <Loader2 v-if="saving" class="mr-2 size-4 animate-spin" />
-          {{ editingId ? "Save" : "Create" }}
+          {{ editingId ? t('stores.form.save') : t('stores.form.create') }}
         </Button>
       </DialogFooter>
     </DialogContent>
@@ -137,9 +137,9 @@
   <Dialog v-model:open="copyOpen">
     <DialogContent class="sm:max-w-md">
       <DialogHeader>
-        <DialogTitle>Copy products into "{{ copyTarget?.name }}"</DialogTitle>
+        <DialogTitle>{{ t('stores.copy.title', { name: copyTarget?.name ?? '' }) }}</DialogTitle>
         <DialogDescription>
-          Choose a store to copy all suppliers and products from.
+          {{ t('stores.copy.description') }}
         </DialogDescription>
       </DialogHeader>
       <div class="flex flex-col gap-3 py-1">
@@ -148,16 +148,15 @@
         >
           <AlertTriangle class="mt-0.5 size-4 shrink-0" />
           <span>
-            This will <strong>permanently overwrite</strong> the current suppliers and products of
-            "{{ copyTarget?.name }}". This cannot be undone.
+            {{ t('stores.copy.warning', { name: copyTarget?.name ?? '' }) }}
           </span>
         </div>
         <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium">Copy from</label>
+          <label class="text-sm font-medium">{{ t('stores.copy.copyFrom') }}</label>
           <DropdownMenu>
             <DropdownMenuTrigger as-child>
               <Button variant="outline" class="justify-between font-normal">
-                <span>{{ copySourceName || "Select a store…" }}</span>
+                <span>{{ copySourceName || t('stores.copy.select') }}</span>
                 <ChevronsUpDown class="ml-2 size-4 opacity-60" />
               </Button>
             </DropdownMenuTrigger>
@@ -175,10 +174,10 @@
         </div>
       </div>
       <DialogFooter>
-        <Button variant="outline" :disabled="copying" @click="copyOpen = false">Cancel</Button>
+        <Button variant="outline" :disabled="copying" @click="copyOpen = false">{{ t('stores.copy.cancel') }}</Button>
         <Button variant="destructive" :disabled="copying || !copySourceId" @click="executeCopy">
           <Loader2 v-if="copying" class="mr-2 size-4 animate-spin" />
-          Overwrite &amp; copy
+          {{ t('stores.copy.confirm') }}
         </Button>
       </DialogFooter>
     </DialogContent>
@@ -188,17 +187,16 @@
   <Dialog v-model:open="deleteOpen">
     <DialogContent class="sm:max-w-sm">
       <DialogHeader>
-        <DialogTitle>Delete store</DialogTitle>
+        <DialogTitle>{{ t('stores.delete.title') }}</DialogTitle>
         <DialogDescription>
-          Delete "{{ deleteTarget?.name }}" and all of its suppliers and products? Orders remain but keep their
-          historical store details. This cannot be undone.
+          {{ t('stores.delete.description', { name: deleteTarget?.name ?? '' }) }}
         </DialogDescription>
       </DialogHeader>
       <DialogFooter class="mt-2">
-        <Button variant="outline" :disabled="deleting" @click="deleteOpen = false">Cancel</Button>
+        <Button variant="outline" :disabled="deleting" @click="deleteOpen = false">{{ t('stores.delete.cancel') }}</Button>
         <Button variant="destructive" :disabled="deleting" @click="executeDelete">
           <Loader2 v-if="deleting" class="mr-2 size-4 animate-spin" />
-          Delete
+          {{ t('stores.delete.confirm') }}
         </Button>
       </DialogFooter>
     </DialogContent>
@@ -239,9 +237,11 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { apiFetch } from "@/lib/apiFetch";
 import { useAuth } from "@/lib/useAuth";
+import { useLocale } from "@/lib/useLocale";
 import { useStore, type Store } from "@/lib/useStore";
 
 const { loading: authLoading } = useAuth();
+const { t } = useLocale();
 const { stores, fetchStores } = useStore();
 
 const loading = ref(true);
