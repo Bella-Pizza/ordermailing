@@ -19,7 +19,8 @@
       "Bash(npm install *)",
       "Bash(node -e \"require\\('googleapis'\\)\")",
       "Bash(Get-Content \"C:\\\\Users\\\\Elias\\\\Desktop\\\\ordermailing-bella-pizza\\\\.env\")",
-      "Bash(Select-String \"GOOGLE_REDIRECT_URI\")"
+      "Bash(Select-String \"GOOGLE_REDIRECT_URI\")",
+      "Bash(npx tsc:*)"
     ]
   }
 }

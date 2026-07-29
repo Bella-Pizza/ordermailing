@@ -88,6 +88,16 @@ async function sendOrderEmail(orderId: string, orderData: any): Promise<boolean>
           expiry_date: stored.expiry_date,
         });
 
+        // Persist rotated tokens. Must be attached BEFORE the send so a token
+        // refresh triggered by the send call is actually saved.
+        oauth2Client.on("tokens", async (tokens) => {
+          await db.collection("settings").doc("gmail").update({
+            ...(tokens.access_token && { access_token: tokens.access_token }),
+            ...(tokens.expiry_date && { expiry_date: tokens.expiry_date }),
+            ...(tokens.refresh_token && { refresh_token: tokens.refresh_token }),
+          });
+        });
+
         // Compose MIME via nodemailer stream transport, send via Gmail API
         const streamTransport = nodemailer.createTransport({ streamTransport: true, newline: "unix" });
         const info = await streamTransport.sendMail({
@@ -112,18 +122,15 @@ async function sendOrderEmail(orderId: string, orderData: any): Promise<boolean>
         const gmailApi = google.gmail({ version: "v1", auth: oauth2Client });
         await gmailApi.users.messages.send({ userId: "me", requestBody: { raw } });
 
-        // Persist refreshed tokens if they changed
-        oauth2Client.on("tokens", async (tokens) => {
-          await db.collection("settings").doc("gmail").update({
-            ...(tokens.access_token && { access_token: tokens.access_token }),
-            ...(tokens.expiry_date && { expiry_date: tokens.expiry_date }),
-          });
-        });
-
         return true;
       }
     } catch (err) {
-      console.warn("Gmail API send failed, falling back to SMTP:", err);
+      // A Gmail account is connected but the send failed (expired refresh
+      // token, missing gmail.send scope, etc). Do NOT silently fall back to the
+      // SMTP identity — that would send as a different address and hide the
+      // real problem. Surface the error and stop here.
+      console.error("Gmail API send failed for connected account:", err);
+      return false;
     }
   }
 
