@@ -24,7 +24,13 @@
       "Bash(git push:*)",
       "Bash(printenv)",
       "Read(//Users/gezelligheid/**)",
-      "Bash(ssh -T git@github.com -o StrictHostKeyChecking=no -o BatchMode=yes)"
+      "Bash(ssh -T git@github.com -o StrictHostKeyChecking=no -o BatchMode=yes)",
+      "Bash(find /Users/gezelligheid/Documents/ordermailing -name .env* -o -name *.env)",
+      "Bash(find /Users/gezelligheid/Documents/ordermailing -name *context* -o -name *store* -o -name *composable*)",
+      "Bash(npx vue-tsc:*)",
+      "Bash(export PATH=\"/usr/local/bin:$PATH\")",
+      "Bash(ls tsconfig*.json server/tsconfig*.json)",
+      "Bash(./node_modules/.bin/tsc --noEmit)"
     ]
   }
 }

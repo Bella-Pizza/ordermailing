@@ -9,7 +9,14 @@ const en = {
   'nav.orders': 'Orders',
   'nav.suppliers': 'Suppliers',
   'nav.history': 'History',
+  'nav.stores': 'Stores',
   'nav.users': 'Users',
+
+  // ── Stores ────────────────────────────────────────────────────────────────────
+  'stores.select': 'Select store',
+  'stores.current': 'Current store',
+  'stores.switch': 'Switch store',
+  'stores.manage': 'Manage stores',
 
   // ── Account ───────────────────────────────────────────────────────────────────
   'account.myAccount': 'My Account',
@@ -365,7 +372,13 @@ const fr: typeof en = {
   'nav.orders': 'Commandes',
   'nav.suppliers': 'Fournisseurs',
   'nav.history': 'Historique',
+  'nav.stores': 'Magasins',
   'nav.users': 'Utilisateurs',
+
+  'stores.select': 'Choisir un magasin',
+  'stores.current': 'Magasin actuel',
+  'stores.switch': 'Changer de magasin',
+  'stores.manage': 'Gérer les magasins',
 
   'account.myAccount': 'Mon compte',
   'account.profile': 'Profil',

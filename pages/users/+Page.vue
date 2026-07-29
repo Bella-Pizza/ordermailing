@@ -20,13 +20,14 @@
             <TableHead>Name</TableHead>
             <TableHead>Email</TableHead>
             <TableHead>Role</TableHead>
+            <TableHead>Stores</TableHead>
             <TableHead>Added</TableHead>
             <TableHead />
           </TableRow>
         </TableHeader>
         <TableBody>
           <TableRow v-if="!loading && users.length === 0">
-            <TableCell colspan="5" class="py-8 text-center text-muted-foreground">No users found.</TableCell>
+            <TableCell colspan="6" class="py-8 text-center text-muted-foreground">No users found.</TableCell>
           </TableRow>
           <TableRow v-for="user in users" :key="user.id">
             <TableCell class="font-medium">{{ user.name }}</TableCell>
@@ -60,6 +61,35 @@
                     <span v-else class="size-3.5" />
                     {{ r }}
                   </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </TableCell>
+            <TableCell>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  :disabled="user.role === 'admin'"
+                  class="flex items-center gap-1.5 rounded px-1.5 py-0.5 outline-none transition-colors hover:bg-muted disabled:pointer-events-none"
+                >
+                  <Badge variant="secondary">
+                    <template v-if="user.role === 'admin'">All stores</template>
+                    <template v-else>{{ storeSummary(user) }}</template>
+                  </Badge>
+                  <ChevronsUpDown v-if="user.role !== 'admin'" class="size-3.5 text-muted-foreground" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuLabel>Assign stores</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    v-for="s in stores"
+                    :key="s.id"
+                    class="flex items-center gap-2"
+                    @select.prevent="toggleStore(user, s.id)"
+                  >
+                    <Check v-if="(user.storeIds ?? []).includes(s.id)" class="size-3.5" />
+                    <span v-else class="size-3.5" />
+                    <span class="flex-1 truncate">{{ s.name }}</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem v-if="stores.length === 0" disabled>No stores yet</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </TableCell>
@@ -135,6 +165,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -156,6 +188,7 @@ import {
 import { apiFetch } from "@/lib/apiFetch";
 import { useAuth } from "@/lib/useAuth";
 import { useLocale } from "@/lib/useLocale";
+import { useStore } from "@/lib/useStore";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface AppUser {
@@ -164,10 +197,12 @@ interface AppUser {
   email: string;
   role: "admin" | "user" | "kassa";
   createdAt: string;
+  storeIds: string[];
 }
 
 const { currentUser, loading: authLoading } = useAuth();
 const { locale } = useLocale();
+const { stores, fetchStores } = useStore();
 const isDesktop = useMediaQuery("(min-width: 768px)");
 
 const roles = ["admin", "user", "kassa"] as const;
@@ -199,12 +234,35 @@ watch(
 async function fetchUsers() {
   loading.value = true;
   try {
-    const res = await apiFetch("/api/users");
+    const [res] = await Promise.all([apiFetch("/api/users"), fetchStores()]);
     users.value = await res.json();
   } catch {
     users.value = [];
   } finally {
     loading.value = false;
+  }
+}
+
+function storeSummary(user: AppUser) {
+  const ids = user.storeIds ?? [];
+  if (ids.length === 0) return "No stores";
+  if (ids.length === 1) return stores.value.find((s) => s.id === ids[0])?.name ?? "1 store";
+  return `${ids.length} stores`;
+}
+
+async function toggleStore(user: AppUser, storeId: string) {
+  const current = new Set(user.storeIds ?? []);
+  if (current.has(storeId)) current.delete(storeId);
+  else current.add(storeId);
+  const next = [...current];
+  user.storeIds = next; // optimistic update
+  try {
+    await apiFetch(`/api/users/${user.id}/stores`, {
+      method: "PATCH",
+      body: JSON.stringify({ storeIds: next }),
+    });
+  } catch {
+    await fetchUsers(); // revert on failure
   }
 }
 

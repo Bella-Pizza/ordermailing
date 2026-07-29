@@ -1,8 +1,18 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { adminAuth, db } from "../firebase-admin";
+import { resolveStoreId } from "../store-access";
 
 const suppliers = new Hono();
+
+/** Fetch a supplier and assert it belongs to the resolved store. */
+async function getScopedSupplier(id: string, storeId: string) {
+  const doc = await db.collection("suppliers").doc(id).get();
+  if (!doc.exists || doc.data()?.storeId !== storeId) {
+    throw new HTTPException(404, { message: "Supplier not found" });
+  }
+  return doc;
+}
 
 // ─── Auth middleware ──────────────────────────────────────────────────────────
 suppliers.use("*", async (c, next) => {
@@ -26,18 +36,22 @@ suppliers.use("*", async (c, next) => {
 
 // ─── GET /api/suppliers ───────────────────────────────────────────────────────
 suppliers.get("/", async (c) => {
-  const snapshot = await db.collection("suppliers").orderBy("name").get();
+  const storeId = await resolveStoreId(c);
+  const snapshot = await db.collection("suppliers").where("storeId", "==", storeId).get();
   const list = await Promise.all(
     snapshot.docs.map(async (doc) => {
       const productsSnap = await db.collection("suppliers").doc(doc.id).collection("products").get();
       return { id: doc.id, ...doc.data(), productCount: productsSnap.size };
     }),
   );
+  // Sort by name in-memory to avoid a composite (storeId + name) index
+  list.sort((a: any, b: any) => (a.name ?? "").localeCompare(b.name ?? ""));
   return c.json(list);
 });
 
 // ─── POST /api/suppliers ──────────────────────────────────────────────────────
 suppliers.post("/", async (c) => {
+  const storeId = await resolveStoreId(c);
   const { name, email, isActive } = await c.req.json<{
     name: string;
     email: string;
@@ -52,6 +66,7 @@ suppliers.post("/", async (c) => {
     name,
     email,
     isActive: isActive ?? true,
+    storeId,
     createdAt: new Date().toISOString(),
   });
 
@@ -61,7 +76,9 @@ suppliers.post("/", async (c) => {
 
 // ─── PATCH /api/suppliers/:id ─────────────────────────────────────────────────
 suppliers.patch("/:id", async (c) => {
+  const storeId = await resolveStoreId(c);
   const id = c.req.param("id");
+  await getScopedSupplier(id, storeId);
   const body = await c.req.json<Partial<{ name: string; email: string; isActive: boolean }>>();
   const allowed: (keyof typeof body)[] = ["name", "email", "isActive"];
   const update: Record<string, unknown> = {};
@@ -74,7 +91,9 @@ suppliers.patch("/:id", async (c) => {
 
 // ─── DELETE /api/suppliers/:id ────────────────────────────────────────────────
 suppliers.delete("/:id", async (c) => {
+  const storeId = await resolveStoreId(c);
   const id = c.req.param("id");
+  await getScopedSupplier(id, storeId);
   const productsSnap = await db.collection("suppliers").doc(id).collection("products").get();
   const batch = db.batch();
   productsSnap.docs.forEach((doc) => batch.delete(doc.ref));
@@ -85,7 +104,9 @@ suppliers.delete("/:id", async (c) => {
 
 // ─── GET /api/suppliers/:id/products ─────────────────────────────────────────
 suppliers.get("/:id/products", async (c) => {
+  const storeId = await resolveStoreId(c);
   const id = c.req.param("id");
+  await getScopedSupplier(id, storeId);
   const snapshot = await db.collection("suppliers").doc(id).collection("products").orderBy("displayOrder").get();
   const list = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
   return c.json(list);
@@ -93,7 +114,9 @@ suppliers.get("/:id/products", async (c) => {
 
 // ─── POST /api/suppliers/:id/products ────────────────────────────────────────
 suppliers.post("/:id/products", async (c) => {
+  const storeId = await resolveStoreId(c);
   const id = c.req.param("id");
+  await getScopedSupplier(id, storeId);
   const { supplierName, internalName, manualOrder, isActive, idealStock, displayOrder } = await c.req.json<{
     supplierName: string;
     internalName: string;
@@ -127,7 +150,9 @@ suppliers.post("/:id/products", async (c) => {
 
 // ─── PATCH /api/suppliers/:id/products/:productId ────────────────────────────
 suppliers.patch("/:id/products/:productId", async (c) => {
+  const storeId = await resolveStoreId(c);
   const id = c.req.param("id");
+  await getScopedSupplier(id, storeId);
   const productId = c.req.param("productId");
   const body = await c.req.json<
     Partial<{
@@ -157,7 +182,9 @@ suppliers.patch("/:id/products/:productId", async (c) => {
 
 // ─── DELETE /api/suppliers/:id/products/:productId ───────────────────────────
 suppliers.delete("/:id/products/:productId", async (c) => {
+  const storeId = await resolveStoreId(c);
   const id = c.req.param("id");
+  await getScopedSupplier(id, storeId);
   const productId = c.req.param("productId");
   await db.collection("suppliers").doc(id).collection("products").doc(productId).delete();
   return c.json({ ok: true });
@@ -171,6 +198,7 @@ suppliers.post("/import", async (c) => {
   if (c.get("role") !== "admin") {
     throw new HTTPException(403, { message: "Only admins can import supplier data" });
   }
+  const storeId = await resolveStoreId(c);
 
   const body = await c.req.json<unknown>();
 
@@ -190,8 +218,8 @@ suppliers.post("/import", async (c) => {
     throw new HTTPException(400, { message: "Supplier list is empty" });
   }
 
-  // 1. Delete all existing suppliers and their products
-  const existingSnap = await db.collection("suppliers").get();
+  // 1. Delete this store's existing suppliers and their products
+  const existingSnap = await db.collection("suppliers").where("storeId", "==", storeId).get();
   for (const existingDoc of existingSnap.docs) {
     const productsSnap = await db.collection("suppliers").doc(existingDoc.id).collection("products").get();
     const batch = db.batch();
@@ -212,6 +240,7 @@ suppliers.post("/import", async (c) => {
       email: s.email ?? "",
       description: s.description ?? "",
       isActive: s.isActive ?? true,
+      storeId,
       createdAt: new Date().toISOString(),
     });
 

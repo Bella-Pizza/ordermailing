@@ -30,6 +30,48 @@
       </SidebarHeader>
 
       <SidebarContent>
+        <!-- ─── Store selector ──────────────────────────────────────────── -->
+        <SidebarGroup v-if="stores.length" class="pb-0">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <DropdownMenu>
+                <DropdownMenuTrigger as-child>
+                  <SidebarMenuButton size="lg" :tooltip="currentStore?.name ?? t('stores.select')">
+                    <div
+                      class="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-accent text-sidebar-accent-foreground"
+                    >
+                      <StoreIcon class="size-4" />
+                    </div>
+                    <div class="grid flex-1 text-left text-sm leading-tight">
+                      <span class="truncate font-semibold">{{ currentStore?.name ?? t('stores.select') }}</span>
+                      <span class="truncate text-xs text-muted-foreground">{{ t('stores.current') }}</span>
+                    </div>
+                    <ChevronsUpDown class="ml-auto size-4" />
+                  </SidebarMenuButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" class="w-[--radix-dropdown-menu-trigger-width] min-w-56">
+                  <DropdownMenuLabel>{{ t('stores.switch') }}</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem v-for="s in stores" :key="s.id" @click="switchStore(s.id)">
+                    <StoreIcon class="mr-2 size-4" />
+                    <span class="flex-1 truncate">{{ s.name }}</span>
+                    <Check v-if="s.id === currentStoreId" class="ml-2 size-4" />
+                  </DropdownMenuItem>
+                  <template v-if="isAdmin">
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem as-child>
+                      <a href="/stores" class="flex w-full items-center">
+                        <Settings class="mr-2 size-4" />
+                        <span>{{ t('stores.manage') }}</span>
+                      </a>
+                    </DropdownMenuItem>
+                  </template>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroup>
+
         <SidebarGroup>
           <SidebarGroupLabel>{{ t('nav.general') }}</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -191,6 +233,8 @@ import {
   PenTool,
   Calendar,
   Sparkles,
+  Store as StoreIcon,
+  Check,
 } from "lucide-vue-next";
 
 // ─── What's new ───────────────────────────────────────────────────────────────
@@ -247,6 +291,7 @@ import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/apiFetch";
 import { useTheme } from "@/lib/useTheme";
 import { useLocale } from "@/lib/useLocale";
+import { useStore } from "@/lib/useStore";
 
 sentryBrowserConfig();
 
@@ -254,6 +299,25 @@ const pageContext = usePageContext();
 const { currentUser, userRole, loading, signOut } = useAuth();
 const { initTheme } = useTheme();
 const { t } = useLocale();
+const { stores, currentStoreId, currentStore, setCurrentStore, fetchStores } = useStore();
+
+const isAdmin = computed(() => userRole.value?.toLowerCase() === "admin");
+
+// Load the stores the user can access once auth is ready.
+watch(
+  loading,
+  (isLoading) => {
+    if (!isLoading && currentUser.value) fetchStores();
+  },
+  { immediate: true },
+);
+
+function switchStore(id: string) {
+  if (id === currentStoreId.value) return;
+  setCurrentStore(id);
+  // Reload so every page refetches its data scoped to the new store.
+  window.location.reload();
+}
 
 // ─── Auth guard & Role-based Redirection ──────────────────────────────────────
 const PUBLIC_PATHS = ["/login", "/register"];
@@ -325,7 +389,10 @@ const nav = computed(() => {
 
 const beheerNav = computed(() => {
   if (userRole.value?.toLowerCase() === "admin")
-    return [{ key: "users", label: t("nav.users"), url: "/users", icon: Users }];
+    return [
+      { key: "stores", label: t("nav.stores"), url: "/stores", icon: StoreIcon },
+      { key: "users", label: t("nav.users"), url: "/users", icon: Users },
+    ];
   return [];
 });
 

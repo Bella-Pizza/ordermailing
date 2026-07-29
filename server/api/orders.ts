@@ -5,17 +5,26 @@ import { HTTPException } from "hono/http-exception";
 import nodemailer from "nodemailer";
 import * as XLSX from "xlsx";
 import { adminAuth, db } from "../firebase-admin";
+import { resolveStoreId } from "../store-access";
 import type { Query } from "firebase-admin/firestore";
 
 async function sendOrderEmail(orderId: string, orderData: any): Promise<boolean> {
   if (!orderData.supplierEmail) return false;
 
-  const shopName = process.env.SHOP_NAME || "Our Shop";
+  // Per-store details drive the email footer, subject and reply-to. Fall back to
+  // the legacy SHOP_* env vars when an order has no store (pre-migration data).
+  let store: Record<string, any> = {};
+  if (orderData.storeId) {
+    const storeSnap = await db.collection("stores").doc(orderData.storeId).get();
+    if (storeSnap.exists) store = storeSnap.data()!;
+  }
+
+  const shopName = store.name || process.env.SHOP_NAME || "Our Shop";
   let fromEmail = process.env.SMTP_USER || "";
-  const shopEmail = process.env.SHOP_EMAIL || fromEmail;
-  const shopPhone = process.env.SHOP_PHONE || "";
-  const shopAddress = process.env.SHOP_ADDRESS || "";
-  const shopVatNumber = process.env.SHOP_VAT_NUMBER || "";
+  const shopEmail = store.contactEmail || process.env.SHOP_EMAIL || fromEmail;
+  const shopPhone = store.phone || process.env.SHOP_PHONE || "";
+  const shopAddress = store.address || process.env.SHOP_ADDRESS || "";
+  const shopVatNumber = store.vatNumber || process.env.SHOP_VAT_NUMBER || "";
 
   const tableRows = (orderData.lines || [])
     .filter((l: any) => l.quantity > 0)
@@ -103,7 +112,8 @@ async function sendOrderEmail(orderId: string, orderData: any): Promise<boolean>
         const info = await streamTransport.sendMail({
           from: `"${shopName}" <${fromEmail}>`,
           to: orderData.supplierEmail,
-          cc: process.env.SHOP_EMAIL || fromEmail,
+          cc: shopEmail,
+          replyTo: shopEmail,
           subject: `Bestelling ${shopName}`,
           html,
           attachments: [{ filename: `Order_Bestelling_${orderId}.xlsx`, content: excelBuffer }],
@@ -149,7 +159,8 @@ async function sendOrderEmail(orderId: string, orderData: any): Promise<boolean>
     await transporter.sendMail({
       from: `"${shopName}" <${process.env.SMTP_USER}>`,
       to: orderData.supplierEmail,
-      cc: process.env.SHOP_EMAIL || process.env.SMTP_USER,
+      cc: shopEmail,
+      replyTo: shopEmail,
       subject: `Bestelling ${shopName}`,
       html,
       attachments: [{ filename: `Order_Bestelling_${orderId}.xlsx`, content: excelBuffer }],
@@ -299,6 +310,7 @@ orders.post("/", async (c) => {
     throw new HTTPException(400, { message: "supplierId and lines are required" });
   }
 
+  const storeId = await resolveStoreId(c);
   const uid = c.get("uid");
   const userDoc = await db.collection("users").doc(uid).get();
   const userName = userDoc.data()?.displayName ?? userDoc.data()?.email ?? uid;
@@ -309,6 +321,7 @@ orders.post("/", async (c) => {
     supplierEmail: body.supplierEmail,
     lines: body.lines,
     notes: body.notes ?? "",
+    storeId,
     createdBy: uid,
     createdByName: userName,
     createdAt: new Date().toISOString(),
@@ -317,7 +330,12 @@ orders.post("/", async (c) => {
   });
 
   if ((body.status ?? "sent") === "sent") {
-    await sendOrderEmail(ref.id, { supplierEmail: body.supplierEmail, lines: body.lines, notes: body.notes ?? "" });
+    await sendOrderEmail(ref.id, {
+      supplierEmail: body.supplierEmail,
+      lines: body.lines,
+      notes: body.notes ?? "",
+      storeId,
+    });
   }
 
   return c.json({ ok: true, id: ref.id }, 201);
@@ -402,7 +420,11 @@ orders.get("/", async (c) => {
   const status = c.req.query("status") || null;
   const after = c.req.query("after") || null; // createdAt cursor value
 
+  // Admins may request the "all stores" overview; everyone else is scoped.
+  const storeId = await resolveStoreId(c, { allowAll: true });
+
   let q: Query = db.collection("orders");
+  if (storeId) q = q.where("storeId", "==", storeId);
   if (status) q = q.where("status", "==", status);
   q = q.orderBy("createdAt", "desc");
   if (after) q = q.startAfter(after);

@@ -11,6 +11,7 @@ type UserListItem = {
   email: string;
   role: string;
   createdAt: string;
+  storeIds: string[];
 };
 
 async function listAllAuthUsers() {
@@ -69,6 +70,7 @@ users.get("/", async (c) => {
       email: authUser.email ?? "",
       role: "user",
       createdAt: authUser.metadata.creationTime ? new Date(authUser.metadata.creationTime).toISOString() : "",
+      storeIds: [],
     });
   }
 
@@ -85,6 +87,7 @@ users.get("/", async (c) => {
         typeof data.createdAt === "string" && data.createdAt
           ? data.createdAt
           : (existing?.createdAt ?? new Date(0).toISOString()),
+      storeIds: Array.isArray(data.storeIds) ? (data.storeIds as string[]) : (existing?.storeIds ?? []),
     });
   }
 
@@ -205,6 +208,24 @@ users.patch("/:id/role", async (c) => {
   }
 
   await db.collection("users").doc(id).update({ role });
+
+  return c.json({ ok: true });
+});
+
+// ─── PATCH /api/users/:id/stores ─────────────────────────────────────────────
+users.patch("/:id/stores", async (c) => {
+  if (c.get("role") !== "admin") {
+    throw new HTTPException(403, { message: "Only admins can assign stores" });
+  }
+
+  const id = c.req.param("id");
+  const { storeIds } = await c.req.json<{ storeIds: string[] }>();
+
+  if (!Array.isArray(storeIds) || storeIds.some((s) => typeof s !== "string")) {
+    throw new HTTPException(400, { message: "storeIds must be an array of store ids" });
+  }
+
+  await db.collection("users").doc(id).set({ storeIds }, { merge: true });
 
   return c.json({ ok: true });
 });

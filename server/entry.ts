@@ -10,6 +10,7 @@ import { automatenRouter } from "./api/automaten";
 import { designsRouter } from "./api/designs";
 import { reservationsRouter } from "./api/reservations";
 import { gmailRouter } from "./api/gmail";
+import { storesRouter } from "./api/stores";
 
 sentryServerConfig();
 
@@ -35,7 +36,7 @@ function startApp() {
         return allowedOrigins.has(origin) ? origin : null;
       },
       allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      allowHeaders: ["Content-Type", "Authorization"],
+      allowHeaders: ["Content-Type", "Authorization", "X-Store-Id"],
     }),
   );
 
@@ -55,6 +56,7 @@ function startApp() {
   app.route("/api/designs", designsRouter);
   app.route("/api/reservations", reservationsRouter);
   app.route("/api/gmail", gmailRouter);
+  app.route("/api/stores", storesRouter);
 
   apply(app, []);
 

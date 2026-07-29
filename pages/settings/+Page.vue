@@ -242,7 +242,74 @@
         </div>
       </div>
     </div>
+
+    <!-- ─── Copy products from another store (admin only) ────────────────────── -->
+    <div v-if="userRole === 'admin' && stores.length > 1" class="rounded-lg border">
+      <div class="flex flex-col gap-1 border-b px-6 py-4">
+        <h2 class="font-semibold">Copy products from another store</h2>
+        <p class="text-sm text-muted-foreground">
+          Replace <span class="font-medium text-foreground">{{ currentStore?.name ?? "this store" }}</span>'s suppliers
+          and products with a copy from another store.
+          <span class="font-medium text-destructive">This overwrites all current suppliers and products.</span>
+        </p>
+      </div>
+      <div class="flex flex-col gap-4 px-6 py-5">
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium">Copy from</label>
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <Button variant="outline" class="w-full justify-between font-normal sm:w-72">
+                <span>{{ copySourceName || "Select a store…" }}</span>
+                <ChevronsUpDown class="ml-2 size-4 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" class="w-72">
+              <DropdownMenuItem
+                v-for="s in otherStores"
+                :key="s.id"
+                @click="copySourceId = s.id"
+              >
+                <span class="flex-1 truncate">{{ s.name }}</span>
+                <Check v-if="copySourceId === s.id" class="ml-2 size-4" />
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        <div class="flex items-center gap-3">
+          <Button variant="destructive" :disabled="!copySourceId || copying" @click="copyConfirmOpen = true">
+            <Loader2 v-if="copying" class="mr-2 size-4 animate-spin" />
+            Overwrite &amp; copy
+          </Button>
+          <span
+            v-if="copySuccess"
+            class="flex items-center gap-1.5 text-sm text-green-600"
+          >
+            <CheckCircle class="size-4" /> Copied {{ copySuccess.suppliers }} suppliers, {{ copySuccess.products }} products
+          </span>
+        </div>
+      </div>
+    </div>
   </div>
+
+  <!-- Confirm copy-products dialog -->
+  <Dialog v-model:open="copyConfirmOpen">
+    <DialogContent class="sm:max-w-md">
+      <DialogHeader>
+        <DialogTitle>Overwrite products?</DialogTitle>
+        <DialogDescription>
+          This permanently replaces all suppliers and products of
+          "{{ currentStore?.name ?? "this store" }}" with a copy from "{{ copySourceName }}". This cannot be undone.
+        </DialogDescription>
+      </DialogHeader>
+      <DialogFooter class="mt-2">
+        <Button variant="outline" :disabled="copying" @click="copyConfirmOpen = false">Cancel</Button>
+        <Button variant="destructive" :disabled="copying" @click="runCopyProducts">
+          <Loader2 v-if="copying" class="mr-2 size-4 animate-spin" />
+          Overwrite &amp; copy
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 
   <!-- Confirm overwrite dialog -->
   <Dialog v-model:open="confirmOpen">
@@ -268,15 +335,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
-import { FileJson, Upload, Loader2, CheckCircle, Sun, Moon } from "lucide-vue-next";
+import { ref, computed, onMounted } from "vue";
+import { FileJson, Upload, Loader2, CheckCircle, Sun, Moon, Check, ChevronsUpDown } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useTheme } from "@/lib/useTheme";
 import { useNolanMode } from "@/lib/useNolanMode";
 import { useLocale } from "@/lib/useLocale";
 import { useAuth } from "@/lib/useAuth";
+import { useStore } from "@/lib/useStore";
 import {
   updateProfile,
   updatePassword,
@@ -298,6 +372,7 @@ const { isDark, toggleTheme } = useTheme();
 const { nolanMode } = useNolanMode();
 const { t, lang, setLang } = useLocale();
 const { currentUser, userRole } = useAuth();
+const { stores, currentStore, currentStoreId, fetchStores } = useStore();
 
 // ─── Profile ──────────────────────────────────────────────────────────────────
 const profileName = ref("");
@@ -309,6 +384,7 @@ onMounted(() => {
   profileName.value = currentUser.value?.displayName ?? "";
 
   if (userRole.value === "admin") {
+    fetchStores();
     fetchGmailStatus();
 
     const params = new URLSearchParams(window.location.search);
@@ -535,6 +611,34 @@ async function runImport() {
     importSuccess.value = { suppliers: result.suppliersCreated, products: result.productsCreated };
   } finally {
     importing.value = false;
+  }
+}
+
+// ─── Copy products from another store ──────────────────────────────────────────
+const copySourceId = ref("");
+const copyConfirmOpen = ref(false);
+const copying = ref(false);
+const copySuccess = ref<{ suppliers: number; products: number } | null>(null);
+
+const otherStores = computed(() => stores.value.filter((s) => s.id !== currentStoreId.value));
+const copySourceName = computed(() => otherStores.value.find((s) => s.id === copySourceId.value)?.name ?? "");
+
+async function runCopyProducts() {
+  if (!copySourceId.value || !currentStoreId.value) return;
+  copying.value = true;
+  copySuccess.value = null;
+  try {
+    const res = await apiFetch(`/api/stores/${currentStoreId.value}/copy-products`, {
+      method: "POST",
+      body: JSON.stringify({ sourceStoreId: copySourceId.value }),
+    });
+    if (!res.ok) return;
+    const result = await res.json();
+    copySuccess.value = { suppliers: result.suppliersCopied, products: result.productsCopied };
+    copyConfirmOpen.value = false;
+    copySourceId.value = "";
+  } finally {
+    copying.value = false;
   }
 }
 </script>
