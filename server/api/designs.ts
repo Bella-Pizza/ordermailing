@@ -1,7 +1,8 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { FieldValue } from "firebase-admin/firestore";
-import { adminAuth, db } from "../firebase-admin";
+import { db } from "../firebase-admin";
+import { verifyAuth } from "../auth";
 import { supabase as _supabase } from "../supabase";
 
 type Env = { Variables: { uid: string } };
@@ -36,21 +37,7 @@ designs.use("*", async (c, next) => {
   return next();
 });
 
-// ─── Auth middleware ──────────────────────────────────────────────────────────
-designs.use("*", async (c, next) => {
-  const authorization = c.req.header("Authorization");
-  if (!authorization?.startsWith("Bearer ")) {
-    throw new HTTPException(401, { message: "Missing or invalid Authorization header" });
-  }
-  try {
-    const idToken = authorization.slice(7);
-    const decoded = await adminAuth.verifyIdToken(idToken);
-    c.set("uid", decoded.uid);
-  } catch {
-    throw new HTTPException(401, { message: "Invalid or expired token" });
-  }
-  return next();
-});
+designs.use("*", verifyAuth);
 
 // ─── Storage helpers ──────────────────────────────────────────────────────────
 

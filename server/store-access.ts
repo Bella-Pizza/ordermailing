@@ -27,9 +27,7 @@ export async function resolveStoreId(c: Context, opts: { allowAll?: boolean } = 
 
   if (role === "admin") return storeId;
 
-  const uid = c.get("uid") as string;
-  const userDoc = await db.collection("users").doc(uid).get();
-  const storeIds: string[] = (userDoc.data()?.storeIds as string[]) ?? [];
+  const storeIds = (c.get("storeIds") as string[] | undefined) ?? [];
   if (!storeIds.includes(storeId)) {
     throw new HTTPException(403, { message: "You do not have access to this store" });
   }

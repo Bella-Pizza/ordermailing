@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { adminAuth, db } from "../firebase-admin";
+import { db } from "../firebase-admin";
+import { verifyAuthWithProfile } from "../auth";
 import { resolveStoreId } from "../store-access";
 
 const suppliers = new Hono();
@@ -14,25 +15,7 @@ async function getScopedSupplier(id: string, storeId: string) {
   return doc;
 }
 
-// ─── Auth middleware ──────────────────────────────────────────────────────────
-suppliers.use("*", async (c, next) => {
-  const authorization = c.req.header("Authorization");
-  if (!authorization?.startsWith("Bearer ")) {
-    throw new HTTPException(401, { message: "Missing or invalid Authorization header" });
-  }
-
-  try {
-    const idToken = authorization.slice(7);
-    const decoded = await adminAuth.verifyIdToken(idToken);
-    c.set("uid", decoded.uid);
-    const userDoc = await db.collection("users").doc(decoded.uid).get();
-    c.set("role", userDoc.exists ? (userDoc.data()?.role ?? "user") : "user");
-  } catch {
-    throw new HTTPException(401, { message: "Invalid or expired token" });
-  }
-
-  return next();
-});
+suppliers.use("*", verifyAuthWithProfile);
 
 // ─── GET /api/suppliers ───────────────────────────────────────────────────────
 suppliers.get("/", async (c) => {
@@ -40,8 +23,10 @@ suppliers.get("/", async (c) => {
   const snapshot = await db.collection("suppliers").where("storeId", "==", storeId).get();
   const list = await Promise.all(
     snapshot.docs.map(async (doc) => {
-      const productsSnap = await db.collection("suppliers").doc(doc.id).collection("products").get();
-      return { id: doc.id, ...doc.data(), productCount: productsSnap.size };
+      // Aggregate count — reading every product document just to size it was
+      // pulling the whole catalogue over the wire on each suppliers load.
+      const productsCount = await db.collection("suppliers").doc(doc.id).collection("products").count().get();
+      return { id: doc.id, ...doc.data(), productCount: productsCount.data().count };
     }),
   );
   // Sort by name in-memory to avoid a composite (storeId + name) index

@@ -817,7 +817,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from "vue";
+import { ref, computed, h, onMounted, onUnmounted, nextTick, watch } from "vue";
 import { apiFetch } from "@/lib/apiFetch";
 import { removeBackground } from "@imgly/background-removal";
 import myriadProUrl from "@/assets/MyriadPro-Black.otf?url";
@@ -867,16 +867,38 @@ import {
 import { Button } from "@/components/ui/button";
 
 // ─── Shared prop-row + prop-input mini-components ─────────────────────────────
+// Render functions rather than `template` strings: a runtime template would
+// pull Vue's ~180 kB template compiler into the browser bundle.
 const PropRow = {
   name: "PropRow",
   props: ["label"],
-  template: `<div class="flex items-center gap-1.5"><span class="w-12 shrink-0 text-xs text-muted-foreground">{{ label }}</span><div class="flex min-w-0 flex-1 items-center gap-1"><slot /></div></div>`,
+  setup(props: { label?: string }, { slots }: { slots: Record<string, (() => unknown) | undefined> }) {
+    return () =>
+      h("div", { class: "flex items-center gap-1.5" }, [
+        h("span", { class: "w-12 shrink-0 text-xs text-muted-foreground" }, props.label),
+        h("div", { class: "flex min-w-0 flex-1 items-center gap-1" }, slots.default?.() as never),
+      ]);
+  },
 };
 const PropInput = {
   name: "PropInput",
   props: ["modelValue", "type", "min"],
   emits: ["update:modelValue", "change"],
-  template: `<input :type="type || 'text'" :value="modelValue" :min="min" class="h-6 w-full rounded border border-white/10 bg-[#1a1a1a] px-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-primary" @input="$emit('update:modelValue', $event.target.value)" @change="$emit('change')" />`,
+  setup(
+    props: { modelValue?: unknown; type?: string; min?: unknown },
+    { emit }: { emit: (event: string, ...args: unknown[]) => void },
+  ) {
+    return () =>
+      h("input", {
+        type: props.type || "text",
+        value: props.modelValue,
+        min: props.min,
+        class:
+          "h-6 w-full rounded border border-white/10 bg-[#1a1a1a] px-2 text-xs text-white focus:outline-none focus:ring-1 focus:ring-primary",
+        onInput: (e: Event) => emit("update:modelValue", (e.target as HTMLInputElement).value),
+        onChange: () => emit("change"),
+      });
+  },
 };
 
 // ─── Fonts ───────────────────────────────────────────────────────────────

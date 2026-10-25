@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { adminAuth, db } from "../firebase-admin";
+import { db } from "../firebase-admin";
+import { verifyAuthWithProfile } from "../auth";
 import { getMessaging } from "firebase-admin/messaging";
-import nodemailer from "nodemailer";
 
 const MIN_PERSONS = 10;
 const RECIPIENT_EMAIL = "belfriet@gmail.com";
@@ -18,13 +18,18 @@ type ReservationPayload = {
   notes?: string;
 };
 
-const mailTransporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+// Built on first send so `nodemailer` stays out of the cold-start path.
+let transporter: import("nodemailer").Transporter | null = null;
+async function mailer() {
+  if (!transporter) {
+    const { default: nodemailer } = await import("nodemailer");
+    transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    });
+  }
+  return transporter;
+}
 
 async function sendPushNotification(title: string, body: string) {
   try {
@@ -57,27 +62,7 @@ async function sendPushNotification(title: string, body: string) {
   }
 }
 
-// ─── Auth middleware for protected routes ─────────────────────────────────────
-const authMiddleware = async (c: any, next: any) => {
-  const authorization = c.req.header("Authorization");
-  if (!authorization?.startsWith("Bearer ")) {
-    throw new HTTPException(401, { message: "Missing or invalid Authorization header" });
-  }
-
-  try {
-    const idToken = authorization.slice(7);
-    const decoded = await adminAuth.verifyIdToken(idToken);
-    c.set("uid", decoded.uid);
-    c.set("email", decoded.email ?? "");
-
-    const userDoc = await db.collection("users").doc(decoded.uid).get();
-    c.set("role", userDoc.exists ? (userDoc.data()?.role ?? "user") : "user");
-  } catch {
-    throw new HTTPException(401, { message: "Invalid or expired token" });
-  }
-
-  return next();
-};
+const authMiddleware = verifyAuthWithProfile;
 
 // ─── POST /api/reservations (Public) ──────────────────────────────────────────
 reservations.post("/", async (c) => {
@@ -166,13 +151,13 @@ reservations.post("/", async (c) => {
       html: customerHtml,
     };
 
-    mailTransporter
-      .sendMail(customerMailOptions)
+    mailer()
+      .then((m) => m.sendMail(customerMailOptions))
       .catch((err) => console.error("Failed to send customer confirmation:", err));
   }
 
   try {
-    await mailTransporter.sendMail(restaurantMailOptions);
+    await (await mailer()).sendMail(restaurantMailOptions);
   } catch (err) {
     console.error("Failed to send reservation email:", err);
   }

@@ -1,28 +1,12 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { adminAuth, db } from "../firebase-admin";
+import { db } from "../firebase-admin";
+import { verifyAuthWithProfile } from "../auth";
 import { copyStoreSuppliers } from "../store-access";
 
 const stores = new Hono();
 
-// ─── Auth middleware ──────────────────────────────────────────────────────────
-stores.use("*", async (c, next) => {
-  const authorization = c.req.header("Authorization");
-  if (!authorization?.startsWith("Bearer ")) {
-    throw new HTTPException(401, { message: "Missing or invalid Authorization header" });
-  }
-  try {
-    const idToken = authorization.slice(7);
-    const decoded = await adminAuth.verifyIdToken(idToken);
-    c.set("uid", decoded.uid);
-    const userDoc = await db.collection("users").doc(decoded.uid).get();
-    c.set("role", userDoc.exists ? (userDoc.data()?.role ?? "user") : "user");
-    c.set("storeIds", (userDoc.data()?.storeIds as string[]) ?? []);
-  } catch {
-    throw new HTTPException(401, { message: "Invalid or expired token" });
-  }
-  return next();
-});
+stores.use("*", verifyAuthWithProfile);
 
 function requireAdmin(c: any) {
   if (c.get("role") !== "admin") {

@@ -523,7 +523,7 @@ interface Product {
   displayOrder: number;
 }
 
-const { loading: authLoading } = useAuth();
+const { authReady } = useAuth();
 const isDesktop = useMediaQuery("(min-width: 768px)");
 
 // ─── Suppliers ────────────────────────────────────────────────────────────────
@@ -627,9 +627,9 @@ const deletingProduct = ref(false);
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 watch(
-  authLoading,
-  (isLoading) => {
-    if (!isLoading) fetchSuppliers();
+  authReady,
+  (ready) => {
+    if (ready) fetchSuppliers();
   },
   { immediate: true },
 );

@@ -1,4 +1,3 @@
-import { google } from "googleapis";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import crypto from "crypto";
@@ -6,10 +5,13 @@ import { adminAuth, db } from "../firebase-admin";
 
 const gmail = new Hono();
 
-function getOAuth2Client() {
+// `googleapis` is only needed on the OAuth connect flow — imported lazily so it
+// stays out of the serverless cold start.
+async function getOAuth2Client() {
   if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET || !process.env.GOOGLE_REDIRECT_URI) {
     throw new HTTPException(500, { message: "Gmail OAuth not configured on server" });
   }
+  const { google } = await import("googleapis");
   return new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
@@ -56,7 +58,7 @@ gmail.get("/status", async (c) => {
 gmail.get("/auth-url", async (c) => {
   await requireAdmin(c);
 
-  const oauth2Client = getOAuth2Client();
+  const oauth2Client = await getOAuth2Client();
 
   const state = crypto.randomBytes(32).toString("hex");
   await db.collection("settings").doc("gmail_oauth_state").set({
@@ -98,10 +100,11 @@ gmail.get("/callback", async (c) => {
   await db.collection("settings").doc("gmail_oauth_state").delete();
 
   try {
-    const oauth2Client = getOAuth2Client();
+    const oauth2Client = await getOAuth2Client();
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
 
+    const { google } = await import("googleapis");
     const oauth2Api = google.oauth2({ version: "v2", auth: oauth2Client });
     const userInfo = await oauth2Api.userinfo.get();
     const email = userInfo.data.email;

@@ -6,8 +6,10 @@
     <slot />
   </template>
 
-  <!-- Authenticated layout with sidebar -->
-  <SidebarProvider v-else-if="!loading" class="h-svh">
+  <!-- Authenticated layout with sidebar. Rendered as soon as Firebase has
+       resolved the session — the role lookup only gates the nav groups below,
+       so page content and its skeletons paint without waiting on it. -->
+  <SidebarProvider v-else-if="authReady && currentUser" class="h-svh">
     <Sidebar collapsible="icon">
       <SidebarHeader>
         <SidebarMenu>
@@ -72,7 +74,7 @@
           </SidebarMenu>
         </SidebarGroup>
 
-        <SidebarGroup>
+        <SidebarGroup v-if="!loading">
           <SidebarGroupLabel>{{ t('nav.general') }}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -296,18 +298,19 @@ import { useStore } from "@/lib/useStore";
 sentryBrowserConfig();
 
 const pageContext = usePageContext();
-const { currentUser, userRole, loading, signOut } = useAuth();
+const { currentUser, userRole, loading, authReady, signOut } = useAuth();
 const { initTheme } = useTheme();
 const { t } = useLocale();
 const { stores, currentStoreId, currentStore, setCurrentStore, fetchStores } = useStore();
 
 const isAdmin = computed(() => userRole.value?.toLowerCase() === "admin");
 
-// Load the stores the user can access once auth is ready.
+// Load the stores the user can access once auth is ready. Runs in parallel with
+// the role lookup rather than waiting for it.
 watch(
-  loading,
-  (isLoading) => {
-    if (!isLoading && currentUser.value) fetchStores();
+  authReady,
+  (ready) => {
+    if (ready && currentUser.value) fetchStores();
   },
   { immediate: true },
 );

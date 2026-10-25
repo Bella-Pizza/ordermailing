@@ -351,7 +351,7 @@ import { apiFetch } from '@/lib/apiFetch';
 import { useAuth } from '@/lib/useAuth';
 import { useLocale } from '@/lib/useLocale';
 
-const { loading: authLoading } = useAuth();
+const { authReady } = useAuth();
 const { locale, t } = useLocale();
 
 interface OrderLine { productId: string; internalName: string; supplierName?: string; quantity: number }
@@ -385,26 +385,19 @@ const RANGES = computed(() => [
 type RangeValue = '30d' | '90d' | '6m' | 'all';
 const range = ref<RangeValue>('30d');
 
+// This page needs the full order history (including lines) for its statistics,
+// so it asks for one large page instead of walking the cursor 20 times.
 async function fetchAllOrders() {
   loading.value = true;
-  const collected: Order[] = [];
-  let cursor: string | null = null;
   try {
-    for (let i = 0; i < 20; i++) {
-      const params = new URLSearchParams();
-      if (cursor) params.set('after', cursor);
-      const res = await apiFetch(`/api/orders?${params}`);
-      const data = await res.json() as { items: Order[]; hasMore: boolean; nextCursor: string | null };
-      collected.push(...data.items);
-      if (!data.hasMore || !data.nextCursor) break;
-      cursor = data.nextCursor;
-    }
-    orders.value = collected;
+    const res = await apiFetch('/api/orders?limit=200');
+    const data = await res.json() as { items: Order[] };
+    orders.value = data.items ?? [];
   } catch { /* ignore */ }
   finally { loading.value = false; }
 }
 
-watch(authLoading, (v) => { if (!v) fetchAllOrders(); }, { immediate: true });
+watch(authReady, (v) => { if (v) fetchAllOrders(); }, { immediate: true });
 
 const now = new Date();
 const todayStr = now.toISOString().slice(0, 10);

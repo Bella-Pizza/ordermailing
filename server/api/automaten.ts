@@ -1,7 +1,6 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { adminAuth } from "../firebase-admin";
-import * as cheerio from "cheerio";
+import { verifyAuth } from "../auth";
 
 export interface MachineItem {
   name: string;
@@ -20,6 +19,7 @@ const isDev = process.env.NODE_ENV === "development";
 const devLog = (...args: unknown[]) => { if (isDev) console.log(...args); };
 
 async function scrapeWithFetch(machine: string): Promise<MachineItem[]> {
+  const cheerio = await import("cheerio");
   const cookies: Record<string, string> = {};
 
   const getCookieHeader = () =>
@@ -147,19 +147,7 @@ async function scrapeWithFetch(machine: string): Promise<MachineItem[]> {
 
 const automaten = new Hono();
 
-// ─── Auth middleware ──────────────────────────────────────────────────────────
-automaten.use("*", async (c, next) => {
-  const authorization = c.req.header("Authorization");
-  if (!authorization?.startsWith("Bearer ")) {
-    throw new HTTPException(401, { message: "Missing or invalid Authorization header" });
-  }
-  try {
-    await adminAuth.verifyIdToken(authorization.slice(7));
-  } catch {
-    throw new HTTPException(401, { message: "Invalid or expired token" });
-  }
-  return next();
-});
+automaten.use("*", verifyAuth);
 
 // ─── GET /api/automaten?machine=XXXX ─────────────────────────────────────────
 automaten.get("/", async (c) => {

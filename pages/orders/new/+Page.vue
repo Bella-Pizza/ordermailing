@@ -443,7 +443,7 @@ interface Product {
   manualOrder: boolean;
 }
 
-const { loading: authLoading } = useAuth();
+const { authReady } = useAuth();
 const { nolanMode } = useNolanMode();
 const { t } = useLocale();
 
@@ -458,9 +458,9 @@ const filteredSuppliers = computed(() => {
 });
 
 watch(
-  authLoading,
-  (loading) => {
-    if (!loading) fetchSuppliers();
+  authReady,
+  (ready) => {
+    if (ready) fetchSuppliers();
   },
   { immediate: true },
 );

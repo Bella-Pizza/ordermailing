@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { adminAuth, db } from "../firebase-admin";
+import { verifyAuthWithProfile } from "../auth";
 import { randomUUID } from "crypto";
 
 const users = new Hono();
@@ -36,25 +37,7 @@ users.use("*", async (c, next) => {
     return next();
   }
 
-  const authorization = c.req.header("Authorization");
-  if (!authorization?.startsWith("Bearer ")) {
-    throw new HTTPException(401, { message: "Missing or invalid Authorization header" });
-  }
-
-  try {
-    const idToken = authorization.slice(7);
-    const decoded = await adminAuth.verifyIdToken(idToken);
-    c.set("uid", decoded.uid);
-    c.set("email", decoded.email ?? "");
-
-    // Fetch role from Firestore and attach to context
-    const userDoc = await db.collection("users").doc(decoded.uid).get();
-    c.set("role", userDoc.exists ? (userDoc.data()?.role ?? "user") : "user");
-  } catch {
-    throw new HTTPException(401, { message: "Invalid or expired token" });
-  }
-
-  return next();
+  return verifyAuthWithProfile(c, next);
 });
 
 // ─── GET /api/users ───────────────────────────────────────────────────────────
@@ -180,10 +163,9 @@ users.post("/register", async (c) => {
 });
 
 // ─── GET /api/users/me ────────────────────────────────────────────────────────
-users.get("/me", async (c) => {
-  const uid = c.get("uid") as string;
-  const snap = await db.collection("users").doc(uid).get();
-  return c.json(snap.exists ? snap.data() : {});
+users.get("/me", (c) => {
+  // The auth middleware already loaded this profile — don't read it twice.
+  return c.json(c.get("profile") ?? {});
 });
 
 // ─── PATCH /api/users/me/settings ────────────────────────────────────────────

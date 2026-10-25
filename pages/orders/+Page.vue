@@ -322,7 +322,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, onMounted, onUnmounted } from "vue";
+import { ref, watch, computed, h, onMounted, onUnmounted } from "vue";
 import { useMediaQuery } from "@vueuse/core";
 import {
   PlusCircle,
@@ -358,7 +358,7 @@ import { apiFetch } from "@/lib/apiFetch";
 import { useAuth } from "@/lib/useAuth";
 import { useLocale } from "@/lib/useLocale";
 
-const { loading: authLoading } = useAuth();
+const { authReady } = useAuth();
 const { locale, t } = useLocale();
 const isDesktop = useMediaQuery("(min-width: 768px)");
 
@@ -399,9 +399,11 @@ const StatusBadge = {
       sent: { label: t("orders.status.sent"), cls: "bg-green-100  text-green-800  dark:bg-green-900/30  dark:text-green-400" },
     };
     const c = computed(() => cfg[props.status] ?? { label: props.status, cls: "bg-muted text-muted-foreground" });
-    return { c };
+    // Render function rather than a `template` string: a runtime template would
+    // pull Vue's ~180 kB template compiler into the browser bundle.
+    return () =>
+      h("span", { class: ["inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", c.value.cls] }, c.value.label);
   },
-  template: `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium" :class="c.cls">{{ c.label }}</span>`,
 };
 
 // ─── Filter ───────────────────────────────────────────────────────────────────
@@ -431,13 +433,13 @@ const mobileLoadingMore = ref(false);
 const mobileSentinel = ref<HTMLElement | null>(null);
 let observer: IntersectionObserver | null = null;
 
-async function initMobile() {
+async function initMobile(preloaded?: PageResult) {
   mobileLoading.value = true;
   mobileItems.value = [];
   mobileCursor.value = null;
   mobileHasMore.value = false;
   try {
-    const { items, hasMore, nextCursor } = await fetchPage(null);
+    const { items, hasMore, nextCursor } = preloaded ?? (await fetchPage(null));
     mobileItems.value = items;
     mobileHasMore.value = hasMore;
     mobileCursor.value = nextCursor;
@@ -470,20 +472,34 @@ const deskPage = ref(0);
 const deskHasMore = ref(false);
 const deskLoading = ref(false);
 
-async function initDesk() {
+async function initDesk(preloaded?: PageResult) {
   deskLoading.value = true;
   deskPage.value = 0;
   deskCursorStack.value = [null];
   deskItems.value = [];
   deskHasMore.value = false;
   try {
-    const { items, hasMore, nextCursor } = await fetchPage(null);
+    const { items, hasMore, nextCursor } = preloaded ?? (await fetchPage(null));
     deskItems.value = items;
     deskHasMore.value = hasMore;
     if (nextCursor) deskCursorStack.value = [null, nextCursor];
   } catch {
     /* ignore */
   } finally {
+    deskLoading.value = false;
+  }
+}
+
+// The mobile and desktop lists both start from the same first page, so fetch it
+// once and seed both rather than issuing two identical requests.
+async function initLists() {
+  mobileLoading.value = true;
+  deskLoading.value = true;
+  try {
+    const first = await fetchPage(null);
+    await Promise.all([initMobile(first), initDesk(first)]);
+  } catch {
+    mobileLoading.value = false;
     deskLoading.value = false;
   }
 }
@@ -504,10 +520,10 @@ async function goToPage(page: number) {
   }
 }
 
-watch(activeFilter, () => { initMobile(); initDesk(); });
+watch(activeFilter, () => { initLists(); });
 
-watch(authLoading, (loading) => {
-  if (!loading) { initMobile(); initDesk(); }
+watch(authReady, (ready) => {
+  if (ready) initLists();
 }, { immediate: true });
 
 onMounted(() => {

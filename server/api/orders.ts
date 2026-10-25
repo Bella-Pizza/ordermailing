@@ -1,12 +1,13 @@
-import { GoogleGenAI } from "@google/genai";
-import { google } from "googleapis";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import nodemailer from "nodemailer";
-import * as XLSX from "xlsx";
-import { adminAuth, db } from "../firebase-admin";
+import { db } from "../firebase-admin";
+import { verifyAuthWithProfile } from "../auth";
 import { resolveStoreId } from "../store-access";
 import type { Query } from "firebase-admin/firestore";
+
+// `googleapis`, `xlsx`, `nodemailer` and `@google/genai` are megabytes of code
+// that only the send-email and AI-template paths touch. Importing them lazily
+// keeps them out of the serverless cold start for every other request.
 
 async function sendOrderEmail(orderId: string, orderData: any): Promise<boolean> {
   if (!orderData.supplierEmail) return false;
@@ -74,6 +75,8 @@ async function sendOrderEmail(orderId: string, orderData: any): Promise<boolean>
       Amount: l.quantity,
     }));
 
+  const [XLSX, { default: nodemailer }] = await Promise.all([import("xlsx"), import("nodemailer")]);
+
   const worksheet = XLSX.utils.json_to_sheet(excelData);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "Order");
@@ -87,6 +90,7 @@ async function sendOrderEmail(orderId: string, orderData: any): Promise<boolean>
         const stored = snap.data()!;
         fromEmail = stored.email;
 
+        const { google } = await import("googleapis");
         const oauth2Client = new google.auth.OAuth2(
           process.env.GOOGLE_CLIENT_ID,
           process.env.GOOGLE_CLIENT_SECRET,
@@ -212,23 +216,7 @@ Keep the products in the same order as the input list.
 
 const orders = new Hono();
 
-// ─── Auth middleware ──────────────────────────────────────────────────────────
-orders.use("*", async (c, next) => {
-  const authorization = c.req.header("Authorization");
-  if (!authorization?.startsWith("Bearer ")) {
-    throw new HTTPException(401, { message: "Missing or invalid Authorization header" });
-  }
-  try {
-    const idToken = authorization.slice(7);
-    const decoded = await adminAuth.verifyIdToken(idToken);
-    c.set("uid", decoded.uid);
-    const userDoc = await db.collection("users").doc(decoded.uid).get();
-    c.set("role", userDoc.exists ? (userDoc.data()?.role ?? "user") : "user");
-  } catch {
-    throw new HTTPException(401, { message: "Invalid or expired token" });
-  }
-  return next();
-});
+orders.use("*", verifyAuthWithProfile);
 
 // ─── POST /api/orders/generate-template ──────────────────────────────────────
 orders.post("/generate-template", async (c) => {
@@ -262,6 +250,7 @@ orders.post("/generate-template", async (c) => {
   const geminiKey = process.env.GEMINI_API_KEY;
   if (!geminiKey) throw new HTTPException(500, { message: "Gemini API key not configured" });
 
+  const { GoogleGenAI } = await import("@google/genai");
   const ai = new GoogleGenAI({ apiKey: geminiKey });
   let rawText = "{}";
   try {
@@ -415,10 +404,23 @@ orders.delete("/:id", async (c) => {
   return c.json({ ok: true });
 });
 // ─── GET /api/orders ──────────────────────────────────────────────────────────
+// `limit` lets a caller that needs many orders (dashboard, history) get them in
+// one round trip instead of walking the cursor one small page at a time.
+// `slim` drops the `lines` array, which dominates the payload when a caller
+// only needs order-level fields.
+const DEFAULT_PAGE_SIZE = 10;
+const MAX_PAGE_SIZE = 500;
+const SLIM_FIELDS = ["supplierId", "supplierName", "status", "createdAt", "createdBy", "createdByName"];
+
 orders.get("/", async (c) => {
-  const PAGE_SIZE = 10;
+  const requestedLimit = Number(c.req.query("limit"));
+  const PAGE_SIZE =
+    Number.isFinite(requestedLimit) && requestedLimit > 0
+      ? Math.min(Math.floor(requestedLimit), MAX_PAGE_SIZE)
+      : DEFAULT_PAGE_SIZE;
   const status = c.req.query("status") || null;
   const after = c.req.query("after") || null; // createdAt cursor value
+  const slim = c.req.query("slim") === "1";
 
   // Admins may request the "all stores" overview; everyone else is scoped.
   const storeId = await resolveStoreId(c, { allowAll: true });
@@ -428,6 +430,7 @@ orders.get("/", async (c) => {
   if (status) q = q.where("status", "==", status);
   q = q.orderBy("createdAt", "desc");
   if (after) q = q.startAfter(after);
+  if (slim) q = q.select(...SLIM_FIELDS);
   q = q.limit(PAGE_SIZE + 1);
 
   const snap = await q.get();

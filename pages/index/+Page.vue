@@ -149,7 +149,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, computed, h, watch } from "vue";
 import { PlusCircle, ClipboardList, Send, CalendarCheck, FilePen, Bell } from "lucide-vue-next";
 import { Button } from "@/components/ui/button";
 import TopLoader from "@/components/ui/top-loader/TopLoader.vue";
@@ -157,17 +157,15 @@ import { apiFetch } from "@/lib/apiFetch";
 import { useAuth } from "@/lib/useAuth";
 import { useLocale } from "@/lib/useLocale";
 
-const { currentUser, loading: authLoading } = useAuth();
+const { currentUser, authReady } = useAuth();
 const { t, locale } = useLocale();
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-interface OrderLine { productId: string; internalName: string; quantity: number }
 interface Order {
   id: string;
   supplierId: string;
   supplierName: string;
   status: "draft" | "pending" | "sent";
-  lines: OrderLine[];
   createdBy: string;
   createdByName?: string;
   createdAt: string;
@@ -177,24 +175,15 @@ interface Order {
 const loading = ref(true);
 const orders = ref<Order[]>([]);
 
-// ─── Fetch up to 50 most recent orders ───────────────────────────────────────
+// ─── Fetch the 50 most recent orders ─────────────────────────────────────────
+// `slim=1` omits each order's `lines` array — this page only needs the
+// order-level fields, and the lines dominate the response size.
 async function fetchOrders() {
   loading.value = true;
-  const collected: Order[] = [];
-  let cursor: string | null = null;
-  let pages = 0;
   try {
-    while (pages < 5) {
-      const params = new URLSearchParams();
-      if (cursor) params.set("after", cursor);
-      const res = await apiFetch(`/api/orders?${params}`);
-      const data = (await res.json()) as { items: Order[]; hasMore: boolean; nextCursor: string | null };
-      collected.push(...data.items);
-      pages++;
-      if (!data.hasMore || !data.nextCursor) break;
-      cursor = data.nextCursor;
-    }
-    orders.value = collected;
+    const res = await apiFetch("/api/orders?limit=50&slim=1");
+    const data = (await res.json()) as { items: Order[] };
+    orders.value = data.items ?? [];
   } catch {
     /* ignore */
   } finally {
@@ -202,7 +191,7 @@ async function fetchOrders() {
   }
 }
 
-watch(authLoading, (v) => { if (!v) fetchOrders(); }, { immediate: true });
+watch(authReady, (v) => { if (v) fetchOrders(); }, { immediate: true });
 
 // ─── Greeting ─────────────────────────────────────────────────────────────────
 const firstName = computed(() => {
@@ -288,6 +277,8 @@ const chartData = computed(() => {
 const maxChart = computed(() => Math.max(1, ...chartData.value.map((d) => d.count)));
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
+// Render function rather than a `template` string: a runtime template would
+// pull Vue's ~180 kB template compiler into the browser bundle.
 const StatusBadge = {
   props: ["status"],
   setup(props: { status: string }) {
@@ -296,9 +287,13 @@ const StatusBadge = {
       sent: { label: t("home.status.sent"), cls: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" },
     };
     const c = computed(() => cfg[props.status] ?? { label: props.status, cls: "bg-muted text-muted-foreground" });
-    return { c };
+    return () =>
+      h(
+        "span",
+        { class: ["inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap", c.value.cls] },
+        c.value.label,
+      );
   },
-  template: `<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap" :class="c.cls">{{ c.label }}</span>`,
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
