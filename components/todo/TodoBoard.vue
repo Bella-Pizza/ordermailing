@@ -43,7 +43,7 @@
                 </span>
               </div>
 
-              <TransitionGroup tag="ul" name="task" class="tasks" :class="{ 'tasks-wide': section.wide }">
+              <TransitionGroup tag="ul" name="task" class="tasks">
                 <TodoItem
                   v-for="task in section.tasks"
                   :key="task.id"
@@ -296,7 +296,7 @@ const sections = computed(() => {
 
   return [
     ...(overdue.length
-      ? [{ key: "overdue", title: t("todo.section.overdue"), subtitle: "", tasks: overdue, showDates: true, wide: true }]
+      ? [{ key: "overdue", title: t("todo.section.overdue"), subtitle: "", tasks: overdue, showDates: true }]
       : []),
     {
       key: "today",
@@ -304,7 +304,6 @@ const sections = computed(() => {
       subtitle: longDate(today.value),
       tasks: inRange((due) => due === today.value).sort(byPriority),
       showDates: false,
-      wide: false,
     },
     {
       key: "tomorrow",
@@ -312,10 +311,9 @@ const sections = computed(() => {
       subtitle: longDate(tomorrow),
       tasks: inRange((due) => due === tomorrow).sort(byPriority),
       showDates: false,
-      wide: false,
     },
     ...(later.length
-      ? [{ key: "later", title: t("todo.section.later"), subtitle: "", tasks: later, showDates: true, wide: true }]
+      ? [{ key: "later", title: t("todo.section.later"), subtitle: "", tasks: later, showDates: true }]
       : []),
   ];
 });
@@ -597,7 +595,7 @@ async function saveTask(input: TaskInput) {
 }
 
 .main {
-  max-width: 1200px;
+  max-width: 760px;
   margin: 0 auto;
   padding: 4px 16px 128px;
   /* A card swiped past the edge must not widen the page. clip, not hidden, so this
@@ -999,12 +997,12 @@ h2 {
   opacity: 0;
 }
 
-/* ─── Wider screens: today and tomorrow side by side, so both read at a glance ── */
+/* ─── Wider screens ─────────────────────────────────────────────────────── */
 @media (min-width: 840px) {
-  /* Lines the store name up with the 1200px content column below it */
+  /* Lines the store name up with the 760px content column below it */
   .appbar {
     padding-block: 8px;
-    padding-inline: max(12px, calc((100% - 1200px) / 2 + 12px));
+    padding-inline: max(12px, calc((100% - 760px) / 2 + 12px));
   }
 
   .appbar-date {
@@ -1020,22 +1018,7 @@ h2 {
   }
 
   .sections {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: start;
-    gap: 32px 24px;
-  }
-
-  .section-overdue,
-  .section-later {
-    grid-column: 1 / -1;
-  }
-
-  .tasks-wide {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .section-tomorrow h2 {
-    font-size: 32px;
+    gap: 32px;
   }
 
   .fab {
