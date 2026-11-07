@@ -8,6 +8,7 @@ export type Store = {
   vatNumber?: string;
   phone?: string;
   contactEmail?: string;
+  todoPinCustom?: boolean;
 };
 
 export const STORE_LS_KEY = "current_store_id";

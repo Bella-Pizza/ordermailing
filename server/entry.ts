@@ -11,6 +11,7 @@ import { designsRouter } from "./api/designs";
 import { reservationsRouter } from "./api/reservations";
 import { gmailRouter } from "./api/gmail";
 import { storesRouter } from "./api/stores";
+import { todoRouter } from "./api/todo";
 
 sentryServerConfig();
 
@@ -36,7 +37,7 @@ function startApp() {
         return allowedOrigins.has(origin) ? origin : null;
       },
       allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      allowHeaders: ["Content-Type", "Authorization", "X-Store-Id"],
+      allowHeaders: ["Content-Type", "Authorization", "X-Store-Id", "X-Todo-Token"],
     }),
   );
 
@@ -57,6 +58,7 @@ function startApp() {
   app.route("/api/reservations", reservationsRouter);
   app.route("/api/gmail", gmailRouter);
   app.route("/api/stores", storesRouter);
+  app.route("/api/todo", todoRouter);
 
   apply(app, []);
 

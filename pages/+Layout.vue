@@ -323,12 +323,15 @@ function switchStore(id: string) {
 }
 
 // ─── Auth guard & Role-based Redirection ──────────────────────────────────────
-const PUBLIC_PATHS = ["/login", "/register"];
+const PUBLIC_PATHS = ["/login", "/register", "/todo"];
 const isPublicPage = computed(() => PUBLIC_PATHS.some((p) => pageContext.urlPathname.startsWith(p)));
 
 watch([loading, userRole], ([isLoading, role]) => {
   if (isLoading || typeof window === "undefined") return;
   const path = window.location.pathname;
+
+  // Open to everyone, including logged-in roles the checks below would redirect.
+  if (path.startsWith("/todo")) return;
 
   if (!currentUser.value) {
     if (!PUBLIC_PATHS.some((p) => path.startsWith(p))) {

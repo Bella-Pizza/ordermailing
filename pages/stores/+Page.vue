@@ -99,6 +99,23 @@
           <p class="text-xs text-muted-foreground">{{ t('stores.form.contactEmailHint') }}</p>
         </div>
 
+        <!-- PIN for the public /todo page -->
+        <div v-if="editingId" class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium" for="store-todo-pin">{{ t('stores.form.todoPin') }}</label>
+          <Input
+            id="store-todo-pin"
+            v-model="form.todoPin"
+            inputmode="numeric"
+            autocomplete="off"
+            maxlength="4"
+            placeholder="••••"
+          />
+          <p class="text-xs" :class="editingPinIsDefault ? 'text-destructive' : 'text-muted-foreground'">
+            {{ editingPinIsDefault ? t('stores.form.todoPinDefault') : t('stores.form.todoPinCustom') }}
+          </p>
+          <p class="text-xs text-muted-foreground">{{ t('stores.form.todoPinHint') }}</p>
+        </div>
+
         <!-- Copy products on creation -->
         <div v-if="!editingId && stores.length > 0" class="flex flex-col gap-1.5">
           <label class="text-sm font-medium">{{ t('stores.form.copyFrom') }}</label>
@@ -125,7 +142,7 @@
       </div>
       <DialogFooter>
         <Button variant="outline" :disabled="saving" @click="formOpen = false">{{ t('stores.form.cancel') }}</Button>
-        <Button :disabled="saving || !form.name.trim()" @click="saveStore">
+        <Button :disabled="saving || !form.name.trim() || !todoPinIsValid" @click="saveStore">
           <Loader2 v-if="saving" class="mr-2 size-4 animate-spin" />
           {{ editingId ? t('stores.form.save') : t('stores.form.create') }}
         </Button>
@@ -257,9 +274,12 @@ const form = ref({
   phone: "",
   contactEmail: "",
   copyFromStoreId: "",
+  todoPin: "",
 });
 
 const copyFromName = computed(() => stores.value.find((s) => s.id === form.value.copyFromStoreId)?.name ?? "");
+const todoPinIsValid = computed(() => form.value.todoPin === "" || /^\d{4}$/.test(form.value.todoPin));
+const editingPinIsDefault = computed(() => !stores.value.find((s) => s.id === editingId.value)?.todoPinCustom);
 
 watch(
   authLoading,
@@ -273,7 +293,7 @@ watch(
 );
 
 function resetForm() {
-  form.value = { name: "", address: "", vatNumber: "", phone: "", contactEmail: "", copyFromStoreId: "" };
+  form.value = { name: "", address: "", vatNumber: "", phone: "", contactEmail: "", copyFromStoreId: "", todoPin: "" };
 }
 
 function openCreate() {
@@ -291,6 +311,7 @@ function openEdit(store: Store) {
     phone: store.phone ?? "",
     contactEmail: store.contactEmail ?? "",
     copyFromStoreId: "",
+    todoPin: "",
   };
   formOpen.value = true;
 }
@@ -306,6 +327,7 @@ async function saveStore() {
       contactEmail: form.value.contactEmail.trim(),
     };
     if (editingId.value) {
+      if (form.value.todoPin) payload.todoPin = form.value.todoPin;
       await apiFetch(`/api/stores/${editingId.value}`, { method: "PATCH", body: JSON.stringify(payload) });
     } else {
       if (form.value.copyFromStoreId) payload.copyFromStoreId = form.value.copyFromStoreId;

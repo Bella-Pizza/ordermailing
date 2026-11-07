@@ -3,6 +3,7 @@ import { HTTPException } from "hono/http-exception";
 import { db } from "../firebase-admin";
 import { verifyAuthWithProfile } from "../auth";
 import { copyStoreSuppliers } from "../store-access";
+import { isValidPin, setTodoPin } from "../todo-access";
 
 const stores = new Hono();
 
@@ -74,14 +75,20 @@ stores.patch("/:id", async (c) => {
     vatNumber: string;
     phone: string;
     contactEmail: string;
+    todoPin: string;
   }>>();
+
+  if ("todoPin" in body && !isValidPin(body.todoPin)) {
+    throw new HTTPException(400, { message: "PIN must be 4 digits" });
+  }
 
   const allowed: (keyof typeof body)[] = ["name", "address", "vatNumber", "phone", "contactEmail"];
   const update: Record<string, unknown> = {};
   for (const key of allowed) {
     if (key in body) update[key] = body[key];
   }
-  await db.collection("stores").doc(id).update(update);
+  if (Object.keys(update).length) await db.collection("stores").doc(id).update(update);
+  if (body.todoPin) await setTodoPin(id, body.todoPin);
   return c.json({ ok: true });
 });
 
@@ -99,7 +106,8 @@ stores.delete("/:id", async (c) => {
     await batch.commit();
   }
 
-  await db.collection("stores").doc(id).delete();
+  // Recursive so the store's to-do tasks, categories and PIN go with it.
+  await db.recursiveDelete(db.collection("stores").doc(id));
   return c.json({ ok: true });
 });
 
