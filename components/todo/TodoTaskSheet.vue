@@ -72,33 +72,16 @@
       <!-- Category -->
       <fieldset class="group">
         <legend class="label">{{ t("todo.form.category") }}</legend>
-        <div v-if="categories.length" class="chips">
-          <button
-            v-for="c in categories"
-            :key="c.id"
-            class="category-chip category-option state-layer"
-            :class="{ selected: !newCategoryOpen && category === c.name }"
-            :style="{ '--hue': c.hue }"
-            type="button"
-            :aria-pressed="!newCategoryOpen && category === c.name"
-            @click="pickCategory(c.name)"
-          >
-            <Check v-if="!newCategoryOpen && category === c.name" :size="16" aria-hidden="true" />
-            <span class="category-name">{{ c.name }}</span>
-          </button>
-          <button
-            class="chip state-layer"
-            :class="{ selected: newCategoryOpen }"
-            type="button"
-            :aria-pressed="newCategoryOpen"
-            @click="openNewCategory"
-          >
-            <Plus :size="18" aria-hidden="true" />
-            {{ t("todo.form.newCategory") }}
-          </button>
-        </div>
+        <TodoCategorySelect
+          :categories="categories"
+          :model-value="category"
+          :is-new="newCategoryOpen"
+          :invalid="!!errors.category && !newCategoryOpen"
+          @update:model-value="pickCategory"
+          @new="openNewCategory"
+        />
         <input
-          v-if="newCategoryOpen || !categories.length"
+          v-if="newCategoryOpen"
           ref="newCategoryInput"
           v-model="newCategory"
           class="input"
@@ -128,7 +111,8 @@
 
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from "vue";
-import { CalendarDays, Check, Plus, Trash2 } from "lucide-vue-next";
+import { CalendarDays, Check, Trash2 } from "lucide-vue-next";
+import TodoCategorySelect from "./TodoCategorySelect.vue";
 import TodoFlame from "./TodoFlame.vue";
 import TodoSheet from "./TodoSheet.vue";
 import { addDays, type Importance, type TaskInput, type TodoCategory, type TodoTask } from "@/lib/todoApi";
@@ -184,7 +168,8 @@ function loadTask(task: TodoTask) {
   customDateOpen.value = task.dueDate !== props.today && task.dueDate !== tomorrow.value;
   importance.value = task.importance;
   category.value = task.categoryName;
-  // Its category may have been cleaned up since; it then has to be typed to be shown.
+  // Its category may have been cleaned up since, so it's no longer in the dropdown.
+  // Prefilling it as a new one keeps the task's category and saves it again.
   const known = props.categories.some((c) => c.name === task.categoryName);
   newCategoryOpen.value = !known;
   newCategory.value = known ? "" : task.categoryName;
@@ -227,7 +212,7 @@ async function openNewCategory() {
 }
 
 function submit() {
-  const chosenCategory = (newCategoryOpen.value || !props.categories.length ? newCategory.value : category.value).trim();
+  const chosenCategory = (newCategoryOpen.value ? newCategory.value : category.value).trim();
   errors.title = title.value.trim() ? "" : t("todo.form.taskRequired");
   errors.dueDate = dueDate.value ? "" : t("todo.form.dueRequired");
   errors.category = chosenCategory ? "" : t("todo.form.categoryRequired");
@@ -327,25 +312,6 @@ legend.label {
   border-color: transparent;
   background: var(--primary-container);
   color: var(--on-primary-container);
-}
-
-.category-option {
-  gap: 6px;
-  min-height: 44px;
-  padding: 0 14px;
-  border: 2px solid transparent;
-  border-radius: 12px;
-  font-size: 15px;
-}
-
-.category-option.selected {
-  border-color: currentColor;
-}
-
-.category-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .importance {

@@ -118,8 +118,9 @@ const en = {
   'todo.form.importance': 'Importance',
   'todo.form.category': 'Category',
   'todo.form.newCategory': 'New category',
-  'todo.form.categoryPlaceholder': 'e.g. Kitchen, Cleaning, Orders',
-  'todo.form.categoryRequired': 'Pick or type a category.',
+  'todo.form.categorySelect': 'Select a category',
+  'todo.form.categoryPlaceholder': 'Name it, e.g. Kitchen, Cleaning, Orders',
+  'todo.form.categoryRequired': 'Select a category or add a new one.',
   'todo.form.add': 'Add task',
   'todo.form.save': 'Save',
 
@@ -645,8 +646,9 @@ const fr: typeof en = {
   'todo.form.importance': 'Importance',
   'todo.form.category': 'Catégorie',
   'todo.form.newCategory': 'Nouvelle catégorie',
-  'todo.form.categoryPlaceholder': 'ex. Cuisine, Nettoyage, Commandes',
-  'todo.form.categoryRequired': 'Choisissez ou saisissez une catégorie.',
+  'todo.form.categorySelect': 'Choisir une catégorie',
+  'todo.form.categoryPlaceholder': 'Nommez-la, ex. Cuisine, Nettoyage, Commandes',
+  'todo.form.categoryRequired': 'Choisissez une catégorie ou ajoutez-en une.',
   'todo.form.add': 'Ajouter la tâche',
   'todo.form.save': 'Enregistrer',
 
