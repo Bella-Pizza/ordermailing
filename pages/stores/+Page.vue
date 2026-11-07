@@ -67,7 +67,7 @@
 
   <!-- ─── Create / Edit store dialog ──────────────────────────────────────── -->
   <Dialog v-model:open="formOpen">
-    <DialogContent class="sm:max-w-md">
+    <DialogContent class="max-h-[90dvh] overflow-y-auto sm:max-w-md">
       <DialogHeader>
         <DialogTitle>{{ editingId ? t('stores.form.editTitle') : t('stores.form.newTitle') }}</DialogTitle>
         <DialogDescription>
