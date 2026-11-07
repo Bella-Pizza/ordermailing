@@ -17,5 +17,7 @@ export default {
     server: "../server/entry.ts",
   },
 
-  prerender: true,
+  // Vike deletes dist/server after pre-rendering by default, but the Vercel bundling
+  // step that runs afterwards still imports dist/server/entry.mjs.
+  prerender: { keepDistServer: true },
 } as Config;

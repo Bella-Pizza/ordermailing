@@ -72,6 +72,12 @@ export default defineConfig({
     },
   },
 
+  // That source uses extensionless imports, which Node can't load at prerender time
+  // if the server build leaves the package external. Bundling it there fixes that.
+  ssr: {
+    noExternal: ["vuedraggable"],
+  },
+
   build: {
     sourcemap: true,
   },
