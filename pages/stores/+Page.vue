@@ -51,6 +51,10 @@
                     <CopyIcon class="mr-2 size-4" />
                     {{ t('stores.menu.copy') }}
                   </DropdownMenuItem>
+                  <DropdownMenuItem v-if="stores.length > 1" @click="openCopyTodos(store)">
+                    <Repeat class="mr-2 size-4" />
+                    {{ t('stores.menu.copyTodos') }}
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem class="text-destructive focus:text-destructive" @click="confirmDelete(store)">
                     <Trash2 class="mr-2 size-4" />
@@ -200,6 +204,51 @@
     </DialogContent>
   </Dialog>
 
+  <!-- ─── Copy recurring to-dos to another store ──────────────────────────── -->
+  <Dialog v-model:open="copyTodosOpen">
+    <DialogContent class="sm:max-w-md">
+      <DialogHeader>
+        <DialogTitle>{{ t('stores.copyTodos.title', { name: copyTodosSource?.name ?? '' }) }}</DialogTitle>
+        <DialogDescription>{{ t('stores.copyTodos.description') }}</DialogDescription>
+      </DialogHeader>
+      <div class="flex flex-col gap-3 py-1">
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium">{{ t('stores.copyTodos.copyTo') }}</label>
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <Button variant="outline" class="justify-between font-normal" :disabled="copyingTodos">
+                <span>{{ copyTodosTargetName || t('stores.copyTodos.select') }}</span>
+                <ChevronsUpDown class="ml-2 size-4 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" class="w-56">
+              <DropdownMenuItem
+                v-for="s in stores.filter((s) => s.id !== copyTodosSource?.id)"
+                :key="s.id"
+                @click="selectCopyTodosTarget(s.id)"
+              >
+                <span class="flex-1 truncate">{{ s.name }}</span>
+                <Check v-if="copyTodosTargetId === s.id" class="ml-2 size-4" />
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        <p v-if="copyTodosMessage" class="text-sm" :class="copyTodosFailed ? 'text-destructive' : 'text-muted-foreground'" role="status">
+          {{ copyTodosMessage }}
+        </p>
+      </div>
+      <DialogFooter>
+        <Button variant="outline" :disabled="copyingTodos" @click="copyTodosOpen = false">
+          {{ copyTodosDone ? t('stores.copyTodos.close') : t('stores.copyTodos.cancel') }}
+        </Button>
+        <Button :disabled="copyingTodos || !copyTodosTargetId || copyTodosDone" @click="executeCopyTodos">
+          <Loader2 v-if="copyingTodos" class="mr-2 size-4 animate-spin" />
+          {{ t('stores.copyTodos.confirm') }}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
   <!-- ─── Delete confirmation ─────────────────────────────────────────────── -->
   <Dialog v-model:open="deleteOpen">
     <DialogContent class="sm:max-w-sm">
@@ -232,6 +281,7 @@ import {
   ChevronsUpDown,
   Copy as CopyIcon,
   AlertTriangle,
+  Repeat,
 } from "lucide-vue-next";
 import TopLoader from "@/components/ui/top-loader/TopLoader.vue";
 import { Button } from "@/components/ui/button";
@@ -365,6 +415,53 @@ async function executeCopy() {
     copyOpen.value = false;
   } finally {
     copying.value = false;
+  }
+}
+
+// ─── Copy recurring to-dos ────────────────────────────────────────────────────
+const copyTodosOpen = ref(false);
+const copyingTodos = ref(false);
+const copyTodosSource = ref<Store | null>(null);
+const copyTodosTargetId = ref("");
+const copyTodosMessage = ref("");
+const copyTodosFailed = ref(false);
+const copyTodosDone = ref(false);
+
+const copyTodosTargetName = computed(() => stores.value.find((s) => s.id === copyTodosTargetId.value)?.name ?? "");
+
+function openCopyTodos(store: Store) {
+  copyTodosSource.value = store;
+  copyTodosTargetId.value = "";
+  copyTodosMessage.value = "";
+  copyTodosFailed.value = false;
+  copyTodosDone.value = false;
+  copyTodosOpen.value = true;
+}
+
+function selectCopyTodosTarget(id: string) {
+  copyTodosTargetId.value = id;
+  copyTodosMessage.value = "";
+  copyTodosDone.value = false;
+}
+
+async function executeCopyTodos() {
+  if (!copyTodosSource.value || !copyTodosTargetId.value) return;
+  copyingTodos.value = true;
+  copyTodosFailed.value = false;
+  try {
+    const res = await apiFetch(`/api/stores/${copyTodosSource.value.id}/copy-recurring`, {
+      method: "POST",
+      body: JSON.stringify({ targetStoreId: copyTodosTargetId.value }),
+    });
+    if (!res.ok) throw new Error(String(res.status));
+    const { copied, skipped } = await res.json();
+    copyTodosMessage.value = t("stores.copyTodos.result", { copied, skipped });
+    copyTodosDone.value = true;
+  } catch {
+    copyTodosMessage.value = t("stores.copyTodos.error");
+    copyTodosFailed.value = true;
+  } finally {
+    copyingTodos.value = false;
   }
 }
 

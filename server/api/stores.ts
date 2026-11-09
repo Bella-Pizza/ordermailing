@@ -4,6 +4,7 @@ import { db } from "../firebase-admin";
 import { verifyAuthWithProfile } from "../auth";
 import { copyStoreSuppliers } from "../store-access";
 import { isValidPin, setTodoPin } from "../todo-access";
+import { copyRecurringTasks } from "./todo";
 
 const stores = new Hono();
 
@@ -125,6 +126,27 @@ stores.post("/:id/copy-products", async (c) => {
 
   const copied = await copyStoreSuppliers(sourceStoreId, targetStoreId);
   return c.json({ ok: true, ...copied });
+});
+
+// ─── POST /api/stores/:id/copy-recurring — copy to-do recurring tasks (admin) ─
+// Adds this store's recurring tasks to the target; titles it already has are skipped.
+stores.post("/:id/copy-recurring", async (c) => {
+  requireAdmin(c);
+  const sourceStoreId = c.req.param("id");
+  const { targetStoreId } = await c.req.json<{ targetStoreId?: string }>().catch(() => ({ targetStoreId: undefined }));
+
+  if (!targetStoreId) throw new HTTPException(400, { message: "targetStoreId is required" });
+  if (targetStoreId === sourceStoreId) {
+    throw new HTTPException(400, { message: "Source and target store must be different" });
+  }
+  const [source, target] = await Promise.all([
+    db.collection("stores").doc(sourceStoreId).get(),
+    db.collection("stores").doc(targetStoreId).get(),
+  ]);
+  if (!source.exists || !target.exists) throw new HTTPException(404, { message: "Store not found" });
+
+  const result = await copyRecurringTasks(sourceStoreId, targetStoreId);
+  return c.json({ ok: true, ...result });
 });
 
 // ─── POST /api/stores/migrate — one-time backfill (admin, idempotent) ────────
