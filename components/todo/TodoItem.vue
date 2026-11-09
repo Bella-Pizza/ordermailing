@@ -34,6 +34,9 @@
             <span class="todo-chip-label">{{ task.categoryName }}</span>
           </span>
           <span v-if="dateLabel" class="todo-date" :class="{ overdue }">{{ dateLabel }}</span>
+          <span v-if="task.recurringId" class="todo-repeat" role="img" :aria-label="t('todo.recurring.repeats')">
+            <Repeat :size="15" aria-hidden="true" />
+          </span>
         </span>
       </button>
 
@@ -46,7 +49,7 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import { Check, Trash2 } from "lucide-vue-next";
+import { Check, Repeat, Trash2 } from "lucide-vue-next";
 import TodoFlame from "./TodoFlame.vue";
 import type { TodoTask } from "@/lib/todoApi";
 import { useLocale } from "@/lib/useLocale";
@@ -315,6 +318,11 @@ function suppressClickAfterDrag(event: MouseEvent) {
 .todo-date.overdue {
   color: var(--error);
   font-weight: 600;
+}
+
+.todo-repeat {
+  display: inline-flex;
+  color: var(--on-surface-variant);
 }
 
 .todo-flame {

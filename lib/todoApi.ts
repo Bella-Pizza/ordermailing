@@ -15,6 +15,22 @@ export type TodoTask = {
   categoryHue: number;
   completedAt: string | null;
   createdAt: string;
+  /** Set when this task is one day's copy of a recurring task */
+  recurringId?: string;
+};
+
+/** 1 = Monday ... 7 = Sunday */
+export type Weekday = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+export const WEEKDAYS: Weekday[] = [1, 2, 3, 4, 5, 6, 7];
+
+export type RecurringTask = {
+  id: string;
+  title: string;
+  days: Weekday[];
+  importance: Importance;
+  categoryId: string;
+  categoryName: string;
+  categoryHue: number;
 };
 
 export type TodoCategory = { id: string; name: string; hue: number };
@@ -24,9 +40,11 @@ export type TodoBoardData = {
   open: TodoTask[];
   completed: TodoTask[];
   categories: TodoCategory[];
+  recurring: RecurringTask[];
 };
 
 export type TaskInput = { title: string; dueDate: string; importance: Importance; category: string };
+export type RecurringInput = { title: string; days: Weekday[]; importance: Importance; category: string };
 
 export class TodoApiError extends Error {
   constructor(
@@ -62,8 +80,19 @@ export const fetchTodoStores = () => request<TodoStore[]>("/stores");
 export const verifyPin = (storeId: string, pin: string) =>
   request<{ token: string }>(`/stores/${storeId}/verify`, { method: "POST", body: { pin } });
 
-export const fetchBoard = (storeId: string, token: string) =>
-  request<TodoBoardData>(`/stores/${storeId}/board`, { token });
+// `today` is the store's own date: the server uses it to create today's and
+// tomorrow's copies of recurring tasks.
+export const fetchBoard = (storeId: string, token: string, today: string) =>
+  request<TodoBoardData>(`/stores/${storeId}/board?today=${today}`, { token });
+
+export const createRecurring = (storeId: string, token: string, input: RecurringInput) =>
+  request<RecurringTask>(`/stores/${storeId}/recurring`, { method: "POST", token, body: input });
+
+export const updateRecurring = (storeId: string, token: string, id: string, input: RecurringInput, today: string) =>
+  request<RecurringTask>(`/stores/${storeId}/recurring/${id}`, { method: "PATCH", token, body: { ...input, today } });
+
+export const deleteRecurring = (storeId: string, token: string, id: string, today: string) =>
+  request<{ ok: true }>(`/stores/${storeId}/recurring/${id}?today=${today}`, { method: "DELETE", token });
 
 export const createTask = (storeId: string, token: string, input: TaskInput) =>
   request<TodoTask>(`/stores/${storeId}/tasks`, { method: "POST", token, body: input });
@@ -130,4 +159,12 @@ export function addDays(iso: string, days: number): string {
 export function parseDay(iso: string): Date {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(y, m - 1, d);
+}
+
+export const weekdayOf = (iso: string) => (parseDay(iso).getDay() || 7) as Weekday;
+
+/** Full day name, e.g. for screen readers next to the two-letter abbreviation. */
+export function weekdayName(day: Weekday, locale: string): string {
+  // 1 January 2024 was a Monday
+  return new Intl.DateTimeFormat(locale, { weekday: "long" }).format(new Date(2024, 0, day));
 }

@@ -1,6 +1,15 @@
 <template>
-  <TodoSheet :open="open" :title="task ? t('todo.form.editTitle') : t('todo.form.newTitle')" @close="emit('close')">
+  <TodoSheet :open="open" :title="sheetTitle" @close="emit('close')">
     <form class="form" novalidate @submit.prevent="submit">
+      <!-- One day's copy of a recurring task: point to where the whole series is edited -->
+      <div v-if="mode === 'task' && task?.recurringId" class="series-note">
+        <Repeat :size="20" aria-hidden="true" />
+        <p>{{ t("todo.recurring.instanceNote") }}</p>
+        <button class="series-link state-layer" type="button" @click="emit('editRecurring', task.recurringId)">
+          {{ t("todo.recurring.editSeries") }}
+        </button>
+      </div>
+
       <!-- Task -->
       <div class="group">
         <label class="label" for="todo-title">{{ t("todo.form.task") }}</label>
@@ -20,40 +29,67 @@
         <p v-if="errors.title" id="todo-title-error" class="error" role="alert">{{ errors.title }}</p>
       </div>
 
-      <!-- Due date -->
+      <!-- Due date, or the days a recurring task repeats on -->
       <fieldset class="group">
-        <legend class="label">{{ t("todo.form.due") }}</legend>
-        <div class="chips">
+        <legend class="label">{{ mode === "series" ? t("todo.form.days") : t("todo.form.due") }}</legend>
+        <div v-if="mode !== 'series'" class="chips">
           <button
             v-for="option in dueOptions"
             :key="option.value"
             class="chip state-layer"
-            :class="{ selected: dueDate === option.value && !customDateOpen }"
+            :class="{ selected: isDueSelected(option.value) }"
             type="button"
-            :aria-pressed="dueDate === option.value && !customDateOpen"
+            :aria-pressed="isDueSelected(option.value)"
             @click="pickDue(option.value)"
           >
-            <Check v-if="dueDate === option.value && !customDateOpen" :size="18" aria-hidden="true" />
+            <Check v-if="isDueSelected(option.value)" :size="18" aria-hidden="true" />
             {{ option.label }}
           </button>
           <button
             class="chip state-layer"
-            :class="{ selected: customDateOpen }"
+            :class="{ selected: customDateOpen && !repeat }"
             type="button"
-            :aria-pressed="customDateOpen"
-            @click="customDateOpen = true"
+            :aria-pressed="customDateOpen && !repeat"
+            @click="openCustomDate"
           >
             <CalendarDays :size="18" aria-hidden="true" />
             {{ t("todo.form.pickDate") }}
           </button>
+          <button
+            v-if="mode === 'new'"
+            class="chip state-layer"
+            :class="{ selected: repeat }"
+            type="button"
+            :aria-pressed="repeat"
+            @click="setRepeat(true)"
+          >
+            <Repeat :size="18" aria-hidden="true" />
+            {{ t("todo.form.repeat") }}
+          </button>
         </div>
+
         <input
-          v-if="customDateOpen"
+          v-if="customDateOpen && !showDays"
           v-model="dueDate"
           class="input date-input"
           type="date"
           :aria-label="t('todo.form.pickDate')"
         />
+
+        <div v-if="showDays" class="days" role="group" :aria-label="t('todo.form.days')">
+          <button
+            v-for="day in WEEKDAYS"
+            :key="day"
+            class="day state-layer"
+            :class="{ selected: days.includes(day) }"
+            type="button"
+            :aria-pressed="days.includes(day)"
+            :aria-label="weekdayName(day, locale)"
+            @click="toggleDay(day)"
+          >
+            {{ t(`todo.day.${day}`) }}
+          </button>
+        </div>
         <p v-if="errors.dueDate" class="error" role="alert">{{ errors.dueDate }}</p>
       </fieldset>
 
@@ -96,13 +132,13 @@
       </fieldset>
 
       <div class="actions">
-        <button v-if="task" class="delete-button state-layer" type="button" @click="emit('delete', task)">
+        <button v-if="mode !== 'new'" class="delete-button state-layer" type="button" @click="onDelete">
           <Trash2 :size="20" aria-hidden="true" />
           {{ t("todo.task.delete") }}
         </button>
         <button class="submit state-layer" type="submit" :disabled="saving">
           <span v-if="saving" class="spinner" aria-hidden="true" />
-          {{ task ? t("todo.form.save") : t("todo.form.add") }}
+          {{ mode === "new" ? t("todo.form.add") : t("todo.form.save") }}
         </button>
       </div>
     </form>
@@ -111,28 +147,54 @@
 
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from "vue";
-import { CalendarDays, Check, Trash2 } from "lucide-vue-next";
+import { CalendarDays, Check, Repeat, Trash2 } from "lucide-vue-next";
 import TodoCategorySelect from "./TodoCategorySelect.vue";
 import TodoFlame from "./TodoFlame.vue";
 import TodoSheet from "./TodoSheet.vue";
-import { addDays, type Importance, type TaskInput, type TodoCategory, type TodoTask } from "@/lib/todoApi";
+import {
+  addDays,
+  weekdayName,
+  weekdayOf,
+  WEEKDAYS,
+  type Importance,
+  type RecurringInput,
+  type RecurringTask,
+  type TaskInput,
+  type TodoCategory,
+  type TodoTask,
+  type Weekday,
+} from "@/lib/todoApi";
 import { useLocale } from "@/lib/useLocale";
 
 const LEVELS: Importance[] = [1, 2, 3];
 
 const props = defineProps<{
   open: boolean;
+  /** An existing task to edit */
   task: TodoTask | null;
+  /** An existing recurring task to edit */
+  recurring: RecurringTask | null;
+  /** Open a new task with Repeat already chosen */
+  startRepeating?: boolean;
   categories: TodoCategory[];
   today: string;
   saving: boolean;
 }>();
-const emit = defineEmits<{ close: []; save: [input: TaskInput]; delete: [task: TodoTask] }>();
-const { t } = useLocale();
+const emit = defineEmits<{
+  close: [];
+  save: [input: TaskInput];
+  saveRecurring: [input: RecurringInput];
+  delete: [task: TodoTask];
+  deleteRecurring: [recurring: RecurringTask];
+  editRecurring: [recurringId: string];
+}>();
+const { t, locale } = useLocale();
 
 const title = ref("");
 const dueDate = ref("");
 const customDateOpen = ref(false);
+const repeat = ref(false);
+const days = ref<Weekday[]>([]);
 const importance = ref<Importance>(2);
 const category = ref("");
 const newCategory = ref("");
@@ -141,24 +203,45 @@ const newCategoryInput = ref<HTMLInputElement | null>(null);
 const errors = reactive({ title: "", dueDate: "", category: "" });
 let holdsEdit = false;
 
+const mode = computed<"new" | "task" | "series">(() => (props.recurring ? "series" : props.task ? "task" : "new"));
+const showDays = computed(() => mode.value === "series" || (mode.value === "new" && repeat.value));
+const sheetTitle = computed(() =>
+  mode.value === "series"
+    ? t("todo.recurring.editTitle")
+    : mode.value === "task"
+      ? t("todo.form.editTitle")
+      : t("todo.form.newTitle"),
+);
+
 const tomorrow = computed(() => addDays(props.today, 1));
 const dueOptions = computed(() => [
   { value: props.today, label: t("todo.section.today") },
   { value: tomorrow.value, label: t("todo.section.tomorrow") },
 ]);
 
+const isDueSelected = (value: string) => !repeat.value && !customDateOpen.value && dueDate.value === value;
+
 function clearErrors() {
   errors.title = errors.dueDate = errors.category = "";
+}
+
+function setCategory(name: string) {
+  // Its category may have been cleaned up since, so it's no longer in the dropdown.
+  // Prefilling it as a new one keeps the category and saves it again.
+  const known = props.categories.some((c) => c.name === name);
+  category.value = known ? name : "";
+  newCategoryOpen.value = !known && !!name;
+  newCategory.value = known ? "" : name;
 }
 
 function reset() {
   title.value = "";
   dueDate.value = tomorrow.value;
   customDateOpen.value = false;
+  repeat.value = false;
+  days.value = [];
   importance.value = 2;
-  category.value = "";
-  newCategory.value = "";
-  newCategoryOpen.value = false;
+  setCategory("");
   clearErrors();
 }
 
@@ -166,13 +249,17 @@ function loadTask(task: TodoTask) {
   title.value = task.title;
   dueDate.value = task.dueDate;
   customDateOpen.value = task.dueDate !== props.today && task.dueDate !== tomorrow.value;
+  repeat.value = false;
   importance.value = task.importance;
-  category.value = task.categoryName;
-  // Its category may have been cleaned up since, so it's no longer in the dropdown.
-  // Prefilling it as a new one keeps the task's category and saves it again.
-  const known = props.categories.some((c) => c.name === task.categoryName);
-  newCategoryOpen.value = !known;
-  newCategory.value = known ? "" : task.categoryName;
+  setCategory(task.categoryName);
+  clearErrors();
+}
+
+function loadRecurring(recurring: RecurringTask) {
+  title.value = recurring.title;
+  days.value = [...recurring.days];
+  importance.value = recurring.importance;
+  setCategory(recurring.categoryName);
   clearErrors();
 }
 
@@ -181,19 +268,43 @@ watch(
   () => props.open,
   (open) => {
     if (!open) return;
-    if (props.task) {
+    if (props.recurring) {
+      loadRecurring(props.recurring);
+      holdsEdit = true;
+    } else if (props.task) {
       loadTask(props.task);
       holdsEdit = true;
     } else if (holdsEdit || !dueDate.value) {
       reset();
       holdsEdit = false;
     }
+    if (mode.value === "new" && props.startRepeating) setRepeat(true);
   },
 );
 
 function pickDue(value: string) {
   dueDate.value = value;
   customDateOpen.value = false;
+  repeat.value = false;
+  errors.dueDate = "";
+}
+
+function openCustomDate() {
+  customDateOpen.value = true;
+  repeat.value = false;
+  errors.dueDate = "";
+}
+
+function setRepeat(on: boolean) {
+  repeat.value = on;
+  customDateOpen.value = false;
+  errors.dueDate = "";
+  // Start from today's day: one tap less for the common case.
+  if (on && !days.value.length) days.value = [weekdayOf(props.today)];
+}
+
+function toggleDay(day: Weekday) {
+  days.value = days.value.includes(day) ? days.value.filter((d) => d !== day) : [...days.value, day];
   errors.dueDate = "";
 }
 
@@ -211,19 +322,22 @@ async function openNewCategory() {
   newCategoryInput.value?.focus();
 }
 
+function onDelete() {
+  if (props.recurring) emit("deleteRecurring", props.recurring);
+  else if (props.task) emit("delete", props.task);
+}
+
 function submit() {
   const chosenCategory = (newCategoryOpen.value ? newCategory.value : category.value).trim();
   errors.title = title.value.trim() ? "" : t("todo.form.taskRequired");
-  errors.dueDate = dueDate.value ? "" : t("todo.form.dueRequired");
   errors.category = chosenCategory ? "" : t("todo.form.categoryRequired");
+  if (showDays.value) errors.dueDate = days.value.length ? "" : t("todo.form.daysRequired");
+  else errors.dueDate = dueDate.value ? "" : t("todo.form.dueRequired");
   if (errors.title || errors.dueDate || errors.category) return;
 
-  emit("save", {
-    title: title.value.trim(),
-    dueDate: dueDate.value,
-    importance: importance.value,
-    category: chosenCategory,
-  });
+  const common = { title: title.value.trim(), importance: importance.value, category: chosenCategory };
+  if (showDays.value) emit("saveRecurring", { ...common, days: [...days.value].sort() });
+  else emit("save", { ...common, dueDate: dueDate.value });
 }
 
 defineExpose({ reset });
@@ -289,6 +403,36 @@ legend.label {
   font-size: 14px;
 }
 
+.series-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 12px 12px 12px 16px;
+  border-radius: 16px;
+  background: var(--surface-container);
+  color: var(--on-surface-variant);
+  font-size: 14px;
+}
+
+.series-note svg {
+  flex: none;
+  color: var(--primary);
+}
+
+.series-note p {
+  flex: 1;
+  min-width: 160px;
+}
+
+.series-link {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 20px;
+  color: var(--primary);
+  font-weight: 600;
+}
+
 .chips {
   display: flex;
   flex-wrap: wrap;
@@ -312,6 +456,37 @@ legend.label {
   border-color: transparent;
   background: var(--primary-container);
   color: var(--on-primary-container);
+}
+
+.days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.day {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  min-height: 44px;
+  max-height: 56px;
+  border: 1px solid var(--outline-variant);
+  border-radius: 50%;
+  color: var(--on-surface);
+  font-size: 15px;
+  font-weight: 600;
+  text-transform: lowercase;
+  transition:
+    background-color 120ms linear,
+    color 120ms linear,
+    border-color 120ms linear;
+}
+
+.day.selected {
+  border-color: transparent;
+  background: var(--primary);
+  color: var(--on-primary);
 }
 
 .importance {

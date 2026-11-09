@@ -8,6 +8,17 @@
           <ChevronsUpDown :size="18" aria-hidden="true" />
         </button>
         <span class="appbar-date">{{ todayLong }}</span>
+        <button
+          class="icon-button state-layer"
+          type="button"
+          :disabled="status !== 'ready'"
+          :aria-label="t('todo.recurring.title')"
+          :title="t('todo.recurring.title')"
+          aria-haspopup="dialog"
+          @click="recurringSheetOpen = true"
+        >
+          <Repeat :size="22" aria-hidden="true" />
+        </button>
         <button class="lang state-layer" type="button" :aria-label="t('todo.switchLanguage')" @click="toggleLang">
           {{ lang === "en" ? "FR" : "EN" }}
         </button>
@@ -90,12 +101,25 @@
       ref="taskSheet"
       :open="taskSheetOpen"
       :task="editingTask"
+      :recurring="editingRecurring"
+      :start-repeating="startRepeating"
       :categories="categories"
       :today="today"
       :saving="saving"
-      @close="taskSheetOpen = false"
+      @close="closeTaskSheet"
       @save="saveTask"
+      @save-recurring="saveRecurring"
       @delete="deleteFromSheet"
+      @delete-recurring="removeRecurring"
+      @edit-recurring="openEditRecurringById"
+    />
+
+    <TodoRecurringSheet
+      :open="recurringSheetOpen"
+      :recurring="recurring"
+      @close="recurringSheetOpen = false"
+      @edit="openEditRecurring"
+      @add="openAddRecurring"
     />
 
     <TodoSheet :open="drawerOpen" :title="t('todo.board.completed')" @close="drawerOpen = false">
@@ -151,20 +175,27 @@ import {
   CloudOff,
   PartyPopper,
   Plus,
+  Repeat,
   Trash2,
 } from "lucide-vue-next";
 import TodoItem from "./TodoItem.vue";
+import TodoRecurringSheet from "./TodoRecurringSheet.vue";
 import TodoSheet from "./TodoSheet.vue";
 import TodoTaskSheet from "./TodoTaskSheet.vue";
 import {
   addDays,
+  createRecurring,
   createTask,
+  deleteRecurring,
   deleteTask,
   fetchBoard,
   isoDay,
   parseDay,
   TodoApiError,
+  updateRecurring,
   updateTask,
+  type RecurringInput,
+  type RecurringTask,
   type TaskInput,
   type TodoCategory,
   type TodoStore,
@@ -192,12 +223,18 @@ const storeName = ref(props.store.name);
 const open = ref<TodoTask[]>([]);
 const completed = ref<TodoTask[]>([]);
 const categories = ref<TodoCategory[]>([]);
+const recurring = ref<RecurringTask[]>([]);
 const today = ref(isoDay(new Date()));
 
 const taskSheetOpen = ref(false);
 const drawerOpen = ref(false);
-const anySheetOpen = computed(() => taskSheetOpen.value || drawerOpen.value);
+const recurringSheetOpen = ref(false);
+const anySheetOpen = computed(() => taskSheetOpen.value || drawerOpen.value || recurringSheetOpen.value);
 const editingTask = shallowRef<TodoTask | null>(null);
+const editingRecurring = shallowRef<RecurringTask | null>(null);
+const startRepeating = ref(false);
+// Set when the task sheet was opened from the recurring list, to go back there after.
+const returnToRecurring = ref(false);
 const saving = ref(false);
 
 // ─── Loading ──────────────────────────────────────────────────────────────────
@@ -211,12 +248,13 @@ async function load() {
   const startedAt = localChanges;
   if (status.value === "error") status.value = "loading";
   try {
-    const data = await fetchBoard(props.store.id, props.token);
+    const data = await fetchBoard(props.store.id, props.token, today.value);
     if (startedAt !== localChanges || writesInFlight > 0) return;
     storeName.value = data.storeName;
     open.value = data.open.filter((task) => !pendingDeletes.has(task.id));
     completed.value = data.completed.filter((task) => !pendingDeletes.has(task.id));
     categories.value = data.categories;
+    recurring.value = data.recurring;
     status.value = "ready";
   } catch (err) {
     if (handleAuthError(err)) return;
@@ -503,14 +541,85 @@ function deleteFromSheet(task: TodoTask) {
 }
 
 // ─── Adding and editing ───────────────────────────────────────────────────────
-function openAdd() {
-  editingTask.value = null;
+function openTaskSheet(options: { task?: TodoTask; recurring?: RecurringTask; repeating?: boolean; fromList?: boolean }) {
+  editingTask.value = options.task ?? null;
+  editingRecurring.value = options.recurring ?? null;
+  startRepeating.value = !!options.repeating;
+  returnToRecurring.value = !!options.fromList;
+  recurringSheetOpen.value = false;
   taskSheetOpen.value = true;
 }
 
-function openEdit(task: TodoTask) {
-  editingTask.value = task;
-  taskSheetOpen.value = true;
+const openAdd = () => openTaskSheet({});
+const openEdit = (task: TodoTask) => openTaskSheet({ task });
+const openAddRecurring = () => openTaskSheet({ repeating: true, fromList: true });
+const openEditRecurring = (item: RecurringTask) => openTaskSheet({ recurring: item, fromList: true });
+
+function openEditRecurringById(recurringId: string) {
+  const item = recurring.value.find((r) => r.id === recurringId);
+  if (item) openTaskSheet({ recurring: item });
+  else showSnackbar(t("todo.recurring.gone"));
+}
+
+function closeTaskSheet() {
+  taskSheetOpen.value = false;
+  if (returnToRecurring.value) recurringSheetOpen.value = true;
+  returnToRecurring.value = false;
+}
+
+// ─── Recurring tasks ──────────────────────────────────────────────────────────
+async function saveRecurring(input: RecurringInput) {
+  saving.value = true;
+  const editing = editingRecurring.value;
+  try {
+    const saved = await write(() =>
+      editing
+        ? updateRecurring(props.store.id, props.token, editing.id, input, today.value)
+        : createRecurring(props.store.id, props.token, input),
+    );
+    // Update the list right away: closing may reopen it before the reload below lands.
+    recurring.value = editing
+      ? recurring.value.map((item) => (item.id === saved.id ? saved : item))
+      : [...recurring.value, saved].sort((a, b) => a.title.localeCompare(b.title));
+    closeTaskSheet();
+    taskSheet.value?.reset();
+    showSnackbar(editing ? t("todo.recurring.saved") : t("todo.recurring.added"));
+    await load(); // Brings in today's and tomorrow's copies
+  } catch (err) {
+    failed(err);
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function removeRecurring(item: RecurringTask) {
+  saving.value = true;
+  try {
+    await write(() => deleteRecurring(props.store.id, props.token, item.id, today.value));
+    recurring.value = recurring.value.filter((r) => r.id !== item.id);
+    closeTaskSheet();
+    // Undo recreates it from the same details; its copies for today and tomorrow come back with it.
+    showSnackbar(t("todo.recurring.deleted"), async () => {
+      try {
+        await write(() =>
+          createRecurring(props.store.id, props.token, {
+            title: item.title,
+            days: item.days,
+            importance: item.importance,
+            category: item.categoryName,
+          }),
+        );
+        await load();
+      } catch (err) {
+        failed(err);
+      }
+    });
+    await load();
+  } catch (err) {
+    failed(err);
+  } finally {
+    saving.value = false;
+  }
 }
 
 async function saveTask(input: TaskInput) {
@@ -523,7 +632,7 @@ async function saveTask(input: TaskInput) {
         : createTask(props.store.id, props.token, input),
     );
     open.value = editing ? open.value.map((item) => (item.id === saved.id ? saved : item)) : [...open.value, saved];
-    taskSheetOpen.value = false;
+    closeTaskSheet();
     taskSheet.value?.reset();
     showSnackbar(editing ? t("todo.board.taskSaved") : t("todo.board.taskAdded"));
     load(); // Picks up a new or cleaned-up category
@@ -583,11 +692,21 @@ async function saveTask(input: TaskInput) {
   font-size: 15px;
 }
 
+.icon-button {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin-left: auto;
+  border-radius: 50%;
+  color: var(--on-surface-variant);
+}
+
 .lang {
   flex: none;
   min-width: 48px;
   height: 48px;
-  margin-left: auto;
   border-radius: 24px;
   color: var(--on-surface-variant);
   font-size: 14px;
@@ -1009,7 +1128,7 @@ h2 {
     display: block;
   }
 
-  .lang {
+  .icon-button {
     margin-left: 0;
   }
 
