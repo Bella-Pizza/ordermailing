@@ -25,6 +25,11 @@ export type ChecklistItem = { name: string; qty: number | null; done: boolean };
 /** Quantity per weekday, keyed "1" (Monday) to "7" (Sunday). No quantities: on every day. */
 export type ChecklistTemplateItem = { name: string; qty: Record<string, number> };
 
+/** Key the checklist editor uses for the one amount of a task on a single date */
+export const SINGLE_AMOUNT = "q";
+/** A row in the checklist editor: amounts keyed by weekday, or SINGLE_AMOUNT for one date. */
+export type EditorItem = { name: string; qty: Record<string, number>; done?: boolean };
+
 /** 1 = Monday ... 7 = Sunday */
 export type Weekday = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 export const WEEKDAYS: Weekday[] = [1, 2, 3, 4, 5, 6, 7];
@@ -50,7 +55,13 @@ export type TodoBoardData = {
   recurring: RecurringTask[];
 };
 
-export type TaskInput = { title: string; dueDate: string; importance: Importance; category: string };
+export type TaskInput = {
+  title: string;
+  dueDate: string;
+  importance: Importance;
+  category: string;
+  checklist?: ChecklistItem[] | null;
+};
 export type RecurringInput = {
   title: string;
   days: Weekday[];

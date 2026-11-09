@@ -93,8 +93,8 @@
         <p v-if="errors.dueDate" class="error" role="alert">{{ errors.dueDate }}</p>
       </fieldset>
 
-      <!-- Optional checklist with a quantity per day, for recurring tasks -->
-      <TodoChecklistEditor v-if="showDays" v-model="checklist" :days="sortedDays" />
+      <!-- Optional checklist: an amount per day when repeating, one amount otherwise -->
+      <TodoChecklistEditor v-model="checklist" :days="showDays ? sortedDays : undefined" />
 
       <!-- Importance -->
       <fieldset class="group">
@@ -160,7 +160,8 @@ import {
   weekdayName,
   weekdayOf,
   WEEKDAYS,
-  type ChecklistTemplateItem,
+  SINGLE_AMOUNT as SINGLE,
+  type EditorItem,
   type Importance,
   type RecurringInput,
   type RecurringTask,
@@ -201,7 +202,7 @@ const customDateOpen = ref(false);
 const repeat = ref(false);
 const days = ref<Weekday[]>([]);
 const sortedDays = computed(() => [...days.value].sort());
-const checklist = ref<ChecklistTemplateItem[]>([]);
+const checklist = ref<EditorItem[]>([]);
 const importance = ref<Importance>(2);
 const category = ref("");
 const newCategory = ref("");
@@ -260,6 +261,11 @@ function loadTask(task: TodoTask) {
   repeat.value = false;
   importance.value = task.importance;
   setCategory(task.categoryName);
+  checklist.value = (task.checklist ?? []).map((item) => ({
+    name: item.name,
+    qty: item.qty ? { [SINGLE]: item.qty } : {},
+    done: item.done,
+  }));
   clearErrors();
 }
 
@@ -271,6 +277,21 @@ function loadRecurring(recurring: RecurringTask) {
   setCategory(recurring.categoryName);
   clearErrors();
 }
+
+// Switching a new task between one date and Repeat keeps the checklist: one amount
+// becomes that amount on every day, and back again it keeps today's amount.
+// Only while creating: an edited task or series loads its checklist in the right shape.
+watch(showDays, (perDay) => {
+  if (mode.value !== "new") return;
+  checklist.value = checklist.value.map((item) => {
+    if (perDay) {
+      const amount = item.qty[SINGLE];
+      return { ...item, qty: amount ? Object.fromEntries(WEEKDAYS.map((d) => [String(d), amount])) : {} };
+    }
+    const amount = item.qty[String(weekdayOf(props.today))] ?? Object.values(item.qty)[0];
+    return { ...item, qty: amount ? { [SINGLE]: amount } : {} };
+  });
+});
 
 // A half-written new task survives closing the sheet by accident.
 watch(
@@ -346,12 +367,18 @@ function submit() {
 
   const common = { title: title.value.trim(), importance: importance.value, category: chosenCategory };
   // Rows left without a name are dropped rather than blocking the save.
-  const items = checklist.value
-    .map((item) => ({ name: item.name.trim(), qty: item.qty }))
-    .filter((item) => item.name);
-  if (showDays.value)
-    emit("saveRecurring", { ...common, days: [...days.value].sort(), checklist: items.length ? items : null });
-  else emit("save", { ...common, dueDate: dueDate.value });
+  const items = checklist.value.map((item) => ({ ...item, name: item.name.trim() })).filter((item) => item.name);
+  if (showDays.value) {
+    const perDay = items.map((item) => ({
+      name: item.name,
+      qty: Object.fromEntries(Object.entries(item.qty).filter(([key]) => /^[1-7]$/.test(key))),
+    }));
+    emit("saveRecurring", { ...common, days: [...days.value].sort(), checklist: perDay.length ? perDay : null });
+  } else {
+    // Ticks survive an edit for items that are still there.
+    const single = items.map((item) => ({ name: item.name, qty: item.qty[SINGLE] ?? null, done: item.done ?? false }));
+    emit("save", { ...common, dueDate: dueDate.value, checklist: single.length ? single : null });
+  }
 }
 
 defineExpose({ reset });

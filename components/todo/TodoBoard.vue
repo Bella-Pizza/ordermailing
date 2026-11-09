@@ -62,6 +62,7 @@
                   :date-label="section.showDates ? shortDate(task.dueDate) : undefined"
                   :overdue="section.key === 'overdue'"
                   @complete="(card, swiped) => completeTask(task, card, swiped)"
+                  @blocked="(remaining) => showSnackbar(t('todo.checklist.notDone', { n: remaining }))"
                   @delete="removeTask(task)"
                   @edit="openEdit(task)"
                   @swiped="dismissSwipeHint"

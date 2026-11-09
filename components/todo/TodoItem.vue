@@ -9,7 +9,8 @@
     <article
       ref="card"
       class="todo-card"
-      :class="{ settling: !dragging, done: checked }"
+      :class="{ settling: !dragging, done: checked, rejected }"
+      @animationend="rejected = false"
       :style="offset ? { transform: `translateX(${offset}px)` } : undefined"
       @pointerdown="onPointerDown"
       @pointermove="onPointerMove"
@@ -68,6 +69,8 @@ const checklistTotal = computed(() => props.task.checklist?.length ?? 0);
 const checklistDone = computed(() => props.task.checklist?.filter((i) => i.done).length ?? 0);
 const emit = defineEmits<{
   complete: [card: HTMLElement, swiped: boolean];
+  /** Completing was refused: this many checklist items are still open */
+  blocked: [remaining: number];
   delete: [];
   edit: [];
   swiped: [];
@@ -89,7 +92,20 @@ let startY = 0;
 let pointerId: number | null = null;
 let swipedThisPress = false;
 
+const rejected = ref(false);
+const remaining = computed(() => checklistTotal.value - checklistDone.value);
+
+/** A checklist has to be finished first: shake the card red instead of completing it. */
+function refuse() {
+  rejected.value = false;
+  // Restart the animation even when it's still playing from a previous attempt
+  requestAnimationFrame(() => (rejected.value = true));
+  navigator.vibrate?.([30, 40, 30]);
+  emit("blocked", remaining.value);
+}
+
 function complete() {
+  if (remaining.value > 0) return refuse();
   checked.value = true;
   emit("complete", card.value!, false);
 }
@@ -140,7 +156,10 @@ function onPointerUp(event: PointerEvent) {
   armed.value = false;
   emit("swiped");
 
-  if (offset.value > 0) {
+  if (offset.value > 0 && remaining.value > 0) {
+    offset.value = 0;
+    refuse();
+  } else if (offset.value > 0) {
     checked.value = true;
     emit("complete", card.value!, true);
   } else {
@@ -242,6 +261,49 @@ function suppressClickAfterDrag(event: MouseEvent) {
 
 .todo-card.settling {
   transition: transform 260ms var(--ease-emphasized);
+}
+
+.todo-card.rejected {
+  animation: todo-reject 460ms var(--ease-emphasized);
+}
+
+@keyframes todo-reject {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  10%,
+  70% {
+    background: var(--error-container);
+    box-shadow: inset 0 0 0 2px var(--error);
+  }
+  15% {
+    transform: translateX(-12px);
+  }
+  35% {
+    transform: translateX(10px);
+  }
+  55% {
+    transform: translateX(-6px);
+  }
+  75% {
+    transform: translateX(3px);
+  }
+}
+
+/* No motion wanted: keep the red flash, drop the shake */
+@media (prefers-reduced-motion: reduce) {
+  .todo-card.rejected {
+    animation: todo-reject-still 600ms linear !important;
+  }
+
+  @keyframes todo-reject-still {
+    0%,
+    80% {
+      background: var(--error-container);
+      box-shadow: inset 0 0 0 2px var(--error);
+    }
+  }
 }
 
 .todo-check {

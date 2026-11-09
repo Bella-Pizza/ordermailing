@@ -90,6 +90,27 @@ function parseChecklist(value: unknown): ChecklistTemplateItem[] | null {
   });
 }
 
+/** A checklist on a single task: one optional amount per item, plus whether it's ticked. */
+function parseTaskChecklist(value: unknown): ChecklistItem[] | null {
+  if (value === null || value === undefined || (Array.isArray(value) && value.length === 0)) return null;
+  if (!Array.isArray(value) || value.length > MAX_CHECKLIST_ITEMS) {
+    throw new HTTPException(400, { message: "Invalid checklist" });
+  }
+  return value.map((raw) => {
+    const item = (raw ?? {}) as { name?: unknown; qty?: unknown; done?: unknown };
+    const name = cleanText(item.name);
+    if (!name || name.length > MAX_ITEM_NAME) throw new HTTPException(400, { message: "Invalid checklist item" });
+    const qty = item.qty ?? null;
+    if (qty !== null && (!Number.isInteger(qty) || (qty as number) < 0 || (qty as number) > 9999)) {
+      throw new HTTPException(400, { message: "Invalid quantity" });
+    }
+    if (item.done !== undefined && typeof item.done !== "boolean") {
+      throw new HTTPException(400, { message: "Invalid checklist item" });
+    }
+    return { name, qty: qty ? (qty as number) : null, done: item.done === true };
+  });
+}
+
 /** The checklist as it applies to one weekday, ready to tick off. */
 function checklistForDay(checklist: ChecklistTemplateItem[] | null | undefined, weekday: number): ChecklistItem[] | null {
   if (!checklist?.length) return null;
@@ -485,6 +506,7 @@ todo.post("/stores/:storeId/tasks", async (c) => {
   if (!categoryName || categoryName.length > MAX_CATEGORY) throw new HTTPException(400, { message: "Invalid category" });
   if (!isValidDate(body.dueDate)) throw new HTTPException(400, { message: "Invalid due date" });
   if (![1, 2, 3].includes(body.importance as number)) throw new HTTPException(400, { message: "Invalid importance" });
+  const checklist = parseTaskChecklist(body.checklist);
 
   const category = await useCategory(storeId, categoryName);
   // Name and colour are copied onto the task so it still renders after its category
@@ -496,6 +518,7 @@ todo.post("/stores/:storeId/tasks", async (c) => {
     categoryId: category.id,
     categoryName: category.name,
     categoryHue: category.hue,
+    checklist,
     completedAt: null,
     createdAt: new Date().toISOString(),
   });
@@ -547,6 +570,7 @@ todo.patch("/stores/:storeId/tasks/:taskId", async (c) => {
     if (![1, 2, 3].includes(body.importance as number)) throw new HTTPException(400, { message: "Invalid importance" });
     update.importance = body.importance;
   }
+  if ("checklist" in body) update.checklist = parseTaskChecklist(body.checklist);
   if ("completed" in body) {
     if (typeof body.completed !== "boolean") throw new HTTPException(400, { message: "Invalid completed flag" });
     update.completedAt = body.completed ? new Date().toISOString() : null;

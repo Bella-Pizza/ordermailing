@@ -1,9 +1,9 @@
 <template>
   <fieldset class="group">
     <legend class="label">{{ t("todo.checklist.title") }}</legend>
-    <p v-if="!modelValue.length" class="hint">{{ t("todo.checklist.hint") }}</p>
+    <p v-if="!modelValue.length" class="hint">{{ perDay ? t("todo.checklist.hint") : t("todo.checklist.hintSingle") }}</p>
 
-    <ul v-else class="items">
+    <ul v-else ref="list" class="items">
       <li v-for="(item, index) in modelValue" :key="index" class="item">
         <div class="item-top">
           <input
@@ -16,11 +16,27 @@
             :placeholder="t('todo.checklist.itemPlaceholder')"
             @input="setName(index, ($event.target as HTMLInputElement).value)"
           />
+          <!-- One date: a single amount, on the same line -->
+          <label v-if="!perDay" class="qty qty-inline">
+            <span class="day">{{ t("todo.checklist.amount") }}</span>
+            <input
+              type="text"
+              inputmode="numeric"
+              maxlength="4"
+              autocomplete="off"
+              :value="item.qty[SINGLE] ?? ''"
+              :aria-label="t('todo.checklist.qtyOne', { name: item.name || index + 1 })"
+              placeholder="–"
+              @input="setQty(index, SINGLE, ($event.target as HTMLInputElement).value)"
+            />
+          </label>
           <button class="remove state-layer" type="button" :aria-label="t('todo.checklist.remove', { name: item.name || index + 1 })" @click="remove(index)">
             <X :size="20" aria-hidden="true" />
           </button>
         </div>
-        <div class="quantities">
+
+        <!-- Recurring: an amount per selected day -->
+        <div v-if="perDay" class="quantities">
           <label v-for="day in days" :key="day" class="qty">
             <span class="day">{{ t(`todo.day.${day}`) }}</span>
             <input
@@ -31,7 +47,7 @@
               :value="item.qty[day] ?? ''"
               :aria-label="t('todo.checklist.qtyFor', { name: item.name || index + 1, day: weekdayName(day, locale) })"
               placeholder="–"
-              @input="setQty(index, day, ($event.target as HTMLInputElement).value)"
+              @input="setQty(index, String(day), ($event.target as HTMLInputElement).value)"
             />
           </label>
         </div>
@@ -46,30 +62,32 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick } from "vue";
+import { computed, nextTick, ref } from "vue";
 import { Plus, X } from "lucide-vue-next";
-import { weekdayName, type ChecklistTemplateItem, type Weekday } from "@/lib/todoApi";
+import { SINGLE_AMOUNT as SINGLE, weekdayName, type EditorItem, type Weekday } from "@/lib/todoApi";
 import { useLocale } from "@/lib/useLocale";
 
-const props = defineProps<{ modelValue: ChecklistTemplateItem[]; days: Weekday[] }>();
-const emit = defineEmits<{ "update:modelValue": [items: ChecklistTemplateItem[]] }>();
+// `days` given: recurring, with an amount per day. Left out: a single date, one amount.
+const props = defineProps<{ modelValue: EditorItem[]; days?: Weekday[] }>();
+const emit = defineEmits<{ "update:modelValue": [items: EditorItem[]] }>();
 const { t, locale } = useLocale();
 
-const update = (items: ChecklistTemplateItem[]) => emit("update:modelValue", items);
+const perDay = computed(() => props.days !== undefined);
+const update = (items: EditorItem[]) => emit("update:modelValue", items);
 
 function setName(index: number, name: string) {
   update(props.modelValue.map((item, i) => (i === index ? { ...item, name } : item)));
 }
 
-// An empty box means the item isn't on the list that day.
-function setQty(index: number, day: Weekday, raw: string) {
+// An empty box means no amount: for a recurring task, not on the list that day.
+function setQty(index: number, key: string, raw: string) {
   const amount = Number.parseInt(raw.replace(/\D/g, ""), 10);
   update(
     props.modelValue.map((item, i) => {
       if (i !== index) return item;
       const qty = { ...item.qty };
-      if (amount > 0) qty[day] = amount;
-      else delete qty[day];
+      if (amount > 0) qty[key] = amount;
+      else delete qty[key];
       return { ...item, qty };
     }),
   );
@@ -79,11 +97,14 @@ function remove(index: number) {
   update(props.modelValue.filter((_, i) => i !== index));
 }
 
+const list = ref<HTMLElement | null>(null);
+
 async function add() {
   update([...props.modelValue, { name: "", qty: {} }]);
   await nextTick();
-  const names = document.querySelectorAll<HTMLInputElement>(".item .name");
-  names[names.length - 1]?.focus();
+  // Within this editor only: other sheets on the page use the same class names.
+  const names = list.value?.querySelectorAll<HTMLInputElement>("input.name");
+  names?.[names.length - 1]?.focus();
 }
 </script>
 
@@ -124,8 +145,8 @@ async function add() {
 
 .item-top {
   display: flex;
-  align-items: center;
-  gap: 4px;
+  align-items: flex-end;
+  gap: 6px;
 }
 
 .name {
@@ -145,7 +166,7 @@ async function add() {
   display: grid;
   place-items: center;
   width: 44px;
-  height: 44px;
+  height: 48px;
   border-radius: 50%;
   color: var(--on-surface-variant);
 }
@@ -162,6 +183,15 @@ async function add() {
   align-items: center;
   gap: 2px;
   min-width: 0;
+}
+
+.qty-inline {
+  flex: none;
+  width: 64px;
+}
+
+.qty-inline input {
+  height: 48px;
 }
 
 .day {
