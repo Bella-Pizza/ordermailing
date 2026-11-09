@@ -17,7 +17,13 @@ export type TodoTask = {
   createdAt: string;
   /** Set when this task is one day's copy of a recurring task */
   recurringId?: string;
+  /** That day's items to tick off, when the recurring task has a checklist */
+  checklist?: ChecklistItem[] | null;
 };
+
+export type ChecklistItem = { name: string; qty: number | null; done: boolean };
+/** Quantity per weekday, keyed "1" (Monday) to "7" (Sunday). No quantities: on every day. */
+export type ChecklistTemplateItem = { name: string; qty: Record<string, number> };
 
 /** 1 = Monday ... 7 = Sunday */
 export type Weekday = 1 | 2 | 3 | 4 | 5 | 6 | 7;
@@ -31,6 +37,7 @@ export type RecurringTask = {
   categoryId: string;
   categoryName: string;
   categoryHue: number;
+  checklist?: ChecklistTemplateItem[] | null;
 };
 
 export type TodoCategory = { id: string; name: string; hue: number };
@@ -44,7 +51,13 @@ export type TodoBoardData = {
 };
 
 export type TaskInput = { title: string; dueDate: string; importance: Importance; category: string };
-export type RecurringInput = { title: string; days: Weekday[]; importance: Importance; category: string };
+export type RecurringInput = {
+  title: string;
+  days: Weekday[];
+  importance: Importance;
+  category: string;
+  checklist: ChecklistTemplateItem[] | null;
+};
 
 export class TodoApiError extends Error {
   constructor(
@@ -101,7 +114,7 @@ export const updateTask = (
   storeId: string,
   token: string,
   taskId: string,
-  patch: Partial<TaskInput> & { completed?: boolean },
+  patch: Partial<TaskInput> & { completed?: boolean; checkItem?: { index: number; done: boolean } },
 ) => request<TodoTask>(`/stores/${storeId}/tasks/${taskId}`, { method: "PATCH", token, body: patch });
 
 export const deleteTask = (storeId: string, token: string, taskId: string, keepalive = false) =>

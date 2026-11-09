@@ -114,6 +114,15 @@
       @edit-recurring="openEditRecurringById"
     />
 
+    <TodoChecklistSheet
+      :open="checklistOpen"
+      :task="checklistTask"
+      @close="checklistOpen = false"
+      @toggle="toggleChecklistItem"
+      @edit-task="(task) => openTaskSheet({ task })"
+      @edit-series="openEditRecurringById"
+    />
+
     <TodoRecurringSheet
       :open="recurringSheetOpen"
       :recurring="recurring"
@@ -178,6 +187,7 @@ import {
   Repeat,
   Trash2,
 } from "lucide-vue-next";
+import TodoChecklistSheet from "./TodoChecklistSheet.vue";
 import TodoItem from "./TodoItem.vue";
 import TodoRecurringSheet from "./TodoRecurringSheet.vue";
 import TodoSheet from "./TodoSheet.vue";
@@ -229,7 +239,13 @@ const today = ref(isoDay(new Date()));
 const taskSheetOpen = ref(false);
 const drawerOpen = ref(false);
 const recurringSheetOpen = ref(false);
-const anySheetOpen = computed(() => taskSheetOpen.value || drawerOpen.value || recurringSheetOpen.value);
+const checklistOpen = ref(false);
+const checklistTaskId = ref<string | null>(null);
+// Looked up live, so ticks (and background refreshes) show in the open sheet.
+const checklistTask = computed(() => open.value.find((task) => task.id === checklistTaskId.value) ?? null);
+const anySheetOpen = computed(
+  () => taskSheetOpen.value || drawerOpen.value || recurringSheetOpen.value || checklistOpen.value,
+);
 const editingTask = shallowRef<TodoTask | null>(null);
 const editingRecurring = shallowRef<RecurringTask | null>(null);
 const startRepeating = ref(false);
@@ -547,11 +563,51 @@ function openTaskSheet(options: { task?: TodoTask; recurring?: RecurringTask; re
   startRepeating.value = !!options.repeating;
   returnToRecurring.value = !!options.fromList;
   recurringSheetOpen.value = false;
+  checklistOpen.value = false;
   taskSheetOpen.value = true;
 }
 
 const openAdd = () => openTaskSheet({});
-const openEdit = (task: TodoTask) => openTaskSheet({ task });
+
+// A task with a checklist opens the list to tick off; its details are a tap further.
+function openEdit(task: TodoTask) {
+  if (task.checklist?.length) {
+    checklistTaskId.value = task.id;
+    checklistOpen.value = true;
+  } else {
+    openTaskSheet({ task });
+  }
+}
+
+async function toggleChecklistItem(index: number, done: boolean) {
+  const task = checklistTask.value;
+  if (!task?.checklist) return;
+  const setDone = (value: boolean) => {
+    open.value = open.value.map((item) =>
+      item.id === task.id && item.checklist
+        ? { ...item, checklist: item.checklist.map((entry, i) => (i === index ? { ...entry, done: value } : entry)) }
+        : item,
+    );
+  };
+
+  setDone(done);
+  try {
+    await write(() => updateTask(props.store.id, props.token, task.id, { checkItem: { index, done } }));
+  } catch (err) {
+    setDone(!done);
+    failed(err);
+    return;
+  }
+
+  // Ticking the last item completes the card, flying it into the drawer like any task.
+  const latest = open.value.find((item) => item.id === task.id);
+  if (done && latest?.checklist?.every((entry) => entry.done)) {
+    checklistOpen.value = false;
+    await sleep(320);
+    const card = root.value?.querySelector<HTMLElement>(`[data-task-id="${task.id}"] .todo-card`);
+    if (card) completeTask(latest, card, false);
+  }
+}
 const openAddRecurring = () => openTaskSheet({ repeating: true, fromList: true });
 const openEditRecurring = (item: RecurringTask) => openTaskSheet({ recurring: item, fromList: true });
 
@@ -607,6 +663,7 @@ async function removeRecurring(item: RecurringTask) {
             days: item.days,
             importance: item.importance,
             category: item.categoryName,
+            checklist: item.checklist ?? null,
           }),
         );
         await load();

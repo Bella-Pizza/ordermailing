@@ -93,6 +93,9 @@
         <p v-if="errors.dueDate" class="error" role="alert">{{ errors.dueDate }}</p>
       </fieldset>
 
+      <!-- Optional checklist with a quantity per day, for recurring tasks -->
+      <TodoChecklistEditor v-if="showDays" v-model="checklist" :days="sortedDays" />
+
       <!-- Importance -->
       <fieldset class="group">
         <legend class="label">{{ t("todo.form.importance") }}</legend>
@@ -149,6 +152,7 @@
 import { computed, nextTick, reactive, ref, watch } from "vue";
 import { CalendarDays, Check, Repeat, Trash2 } from "lucide-vue-next";
 import TodoCategorySelect from "./TodoCategorySelect.vue";
+import TodoChecklistEditor from "./TodoChecklistEditor.vue";
 import TodoFlame from "./TodoFlame.vue";
 import TodoSheet from "./TodoSheet.vue";
 import {
@@ -156,6 +160,7 @@ import {
   weekdayName,
   weekdayOf,
   WEEKDAYS,
+  type ChecklistTemplateItem,
   type Importance,
   type RecurringInput,
   type RecurringTask,
@@ -195,6 +200,8 @@ const dueDate = ref("");
 const customDateOpen = ref(false);
 const repeat = ref(false);
 const days = ref<Weekday[]>([]);
+const sortedDays = computed(() => [...days.value].sort());
+const checklist = ref<ChecklistTemplateItem[]>([]);
 const importance = ref<Importance>(2);
 const category = ref("");
 const newCategory = ref("");
@@ -240,6 +247,7 @@ function reset() {
   customDateOpen.value = false;
   repeat.value = false;
   days.value = [];
+  checklist.value = [];
   importance.value = 2;
   setCategory("");
   clearErrors();
@@ -258,6 +266,7 @@ function loadTask(task: TodoTask) {
 function loadRecurring(recurring: RecurringTask) {
   title.value = recurring.title;
   days.value = [...recurring.days];
+  checklist.value = (recurring.checklist ?? []).map((item) => ({ name: item.name, qty: { ...item.qty } }));
   importance.value = recurring.importance;
   setCategory(recurring.categoryName);
   clearErrors();
@@ -336,7 +345,12 @@ function submit() {
   if (errors.title || errors.dueDate || errors.category) return;
 
   const common = { title: title.value.trim(), importance: importance.value, category: chosenCategory };
-  if (showDays.value) emit("saveRecurring", { ...common, days: [...days.value].sort() });
+  // Rows left without a name are dropped rather than blocking the save.
+  const items = checklist.value
+    .map((item) => ({ name: item.name.trim(), qty: item.qty }))
+    .filter((item) => item.name);
+  if (showDays.value)
+    emit("saveRecurring", { ...common, days: [...days.value].sort(), checklist: items.length ? items : null });
   else emit("save", { ...common, dueDate: dueDate.value });
 }
 

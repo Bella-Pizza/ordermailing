@@ -1,5 +1,5 @@
 <template>
-  <li class="row" :class="{ 'row-right': offset > 0, 'row-left': offset < 0, armed }">
+  <li class="row" :class="{ 'row-right': offset > 0, 'row-left': offset < 0, armed }" :data-task-id="task.id">
     <!-- Revealed behind the card while swiping -->
     <div class="reveal" aria-hidden="true">
       <span class="reveal-action complete"><Check :size="24" />{{ t("todo.task.complete") }}</span>
@@ -37,6 +37,15 @@
           <span v-if="task.recurringId" class="todo-repeat" role="img" :aria-label="t('todo.recurring.repeats')">
             <Repeat :size="15" aria-hidden="true" />
           </span>
+          <span
+            v-if="checklistTotal"
+            class="todo-progress"
+            :class="{ complete: checklistDone === checklistTotal }"
+            :aria-label="t('todo.checklist.progress', { done: checklistDone, total: checklistTotal })"
+          >
+            <ListChecks :size="15" aria-hidden="true" />
+            {{ checklistDone }}/{{ checklistTotal }}
+          </span>
         </span>
       </button>
 
@@ -48,13 +57,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
-import { Check, Repeat, Trash2 } from "lucide-vue-next";
+import { computed, ref } from "vue";
+import { Check, ListChecks, Repeat, Trash2 } from "lucide-vue-next";
 import TodoFlame from "./TodoFlame.vue";
 import type { TodoTask } from "@/lib/todoApi";
 import { useLocale } from "@/lib/useLocale";
 
-defineProps<{ task: TodoTask; dateLabel?: string; overdue?: boolean }>();
+const props = defineProps<{ task: TodoTask; dateLabel?: string; overdue?: boolean }>();
+const checklistTotal = computed(() => props.task.checklist?.length ?? 0);
+const checklistDone = computed(() => props.task.checklist?.filter((i) => i.done).length ?? 0);
 const emit = defineEmits<{
   complete: [card: HTMLElement, swiped: boolean];
   delete: [];
@@ -323,6 +334,24 @@ function suppressClickAfterDrag(event: MouseEvent) {
 .todo-repeat {
   display: inline-flex;
   color: var(--on-surface-variant);
+}
+
+.todo-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 8px;
+  background: var(--surface-high);
+  color: var(--on-surface);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.todo-progress.complete {
+  background: var(--primary-container);
+  color: var(--on-primary-container);
 }
 
 .todo-flame {
