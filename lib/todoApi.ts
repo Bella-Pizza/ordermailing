@@ -19,9 +19,21 @@ export type TodoTask = {
   recurringId?: string;
   /** That day's items to tick off, when the recurring task has a checklist */
   checklist?: ChecklistItem[] | null;
+  /**
+   * Set on the stock card's own tasks: the "count the stock" card for a day, and the
+   * "to prepare" list that comes out of that count. `done`/`total` are how far the
+   * count has got, filled in by the server for count cards.
+   */
+  stock?: { kind: "count" | "prep"; targetDate: string; done?: number; total?: number };
 };
 
-export type ChecklistItem = { name: string; qty: number | null; done: boolean };
+export type ChecklistItem = {
+  name: string;
+  qty: number | null;
+  done: boolean;
+  /** On a "to prepare" list: how much of the quantity is missing in each place */
+  parts?: { chambre?: number; makeline?: number };
+};
 /** Quantity per weekday, keyed "1" (Monday) to "7" (Sunday). No quantities: on every day. */
 export type ChecklistTemplateItem = { name: string; qty: Record<string, number> };
 
@@ -109,6 +121,53 @@ export const verifyPin = (storeId: string, pin: string) =>
 export const fetchBoard = (storeId: string, token: string, today: string) =>
   request<TodoBoardData>(`/stores/${storeId}/board?today=${today}`, { token });
 
+// ─── Stock card ───────────────────────────────────────────────────────────────
+export type { Location, StockCounts, StockItem } from "./stockCalc";
+import type { Location, StockCounts, StockItem } from "./stockCalc";
+
+export const fetchStock = (storeId: string, token: string) =>
+  request<{ items: StockItem[]; openWeekdays: number[] }>(`/stores/${storeId}/stock`, { token });
+
+export const createStockItem = (
+  storeId: string,
+  token: string,
+  body: { name: string; chambre?: Record<string, number>; makeline?: Record<string, number> },
+) => request<StockItem>(`/stores/${storeId}/stock/items`, { method: "POST", token, body });
+
+/** Rename a product, or set single quantities (`{ chambre: { "3": 4 } }`); null clears one. */
+export const updateStockItem = (
+  storeId: string,
+  token: string,
+  itemId: string,
+  patch: { name?: string; chambre?: Record<string, number | null>; makeline?: Record<string, number | null> },
+) => request<{ ok: true }>(`/stores/${storeId}/stock/items/${itemId}`, { method: "PATCH", token, body: patch });
+
+export const deleteStockItem = (storeId: string, token: string, itemId: string) =>
+  request<{ ok: true }>(`/stores/${storeId}/stock/items/${itemId}`, { method: "DELETE", token });
+
+export const fetchStockCount = (storeId: string, token: string, date: string) =>
+  request<{ targetDate: string; counts: StockCounts; finishedAt: string | null }>(
+    `/stores/${storeId}/stock/counts/${date}`,
+    { token },
+  );
+
+export const setStockCount = (
+  storeId: string,
+  token: string,
+  date: string,
+  itemId: string,
+  location: Location,
+  value: number | null,
+) =>
+  request<{ ok: true }>(`/stores/${storeId}/stock/counts/${date}`, {
+    method: "PATCH",
+    token,
+    body: { itemId, location, value },
+  });
+
+export const finishStockCount = (storeId: string, token: string, date: string) =>
+  request<{ prepare: number }>(`/stores/${storeId}/stock/counts/${date}/finish`, { method: "POST", token, body: {} });
+
 export const createRecurring = (storeId: string, token: string, input: RecurringInput) =>
   request<RecurringTask>(`/stores/${storeId}/recurring`, { method: "POST", token, body: input });
 
@@ -186,6 +245,20 @@ export function parseDay(iso: string): Date {
 }
 
 export const weekdayOf = (iso: string) => (parseDay(iso).getDay() || 7) as Weekday;
+
+/**
+ * What a task is called on screen. The stock card's own tasks are named here, in the
+ * viewer's language, because the server can't know which one that is.
+ */
+export function taskTitle(
+  task: TodoTask,
+  t: (key: string, params?: Record<string, string | number>) => string,
+  locale: string,
+): string {
+  if (!task.stock) return task.title;
+  const day = weekdayName(weekdayOf(task.stock.targetDate), locale);
+  return t(task.stock.kind === "count" ? "todo.stock.countTitle" : "todo.stock.prepTitle", { day });
+}
 
 /** Full day name, e.g. for screen readers next to the two-letter abbreviation. */
 export function weekdayName(day: Weekday, locale: string): string {

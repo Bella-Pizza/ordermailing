@@ -1,63 +1,34 @@
-import { createHash } from "node:crypto";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { db } from "../firebase-admin";
 import { isValidPin, todoTokenIsValid, verifyTodoPin } from "../todo-access";
+import {
+  ALREADY_EXISTS,
+  ID_PATTERN,
+  MAX_OPEN,
+  addDaysIso,
+  categoriesOf,
+  categoryKey,
+  cleanText,
+  isValidDate,
+  isoWeekday,
+  pruneCategories,
+  recurringOf,
+  serialize,
+  storeIdParam,
+  storeToday,
+  tasksOf,
+  useCategory,
+} from "../todo-shared";
+import { ensureStockCards, loadStockConfig, stockRouter, withStockProgress } from "../stock";
 
 // Public router: there is no Firebase login here. Everything except the store list
 // and PIN check requires the per-store token that a correct PIN hands out.
 const todo = new Hono();
 
-const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 const MAX_TITLE = 200;
 const MAX_CATEGORY = 40;
-const MAX_OPEN = 500;
 const MAX_COMPLETED = 100;
-
-// Automatic category clean-up: dropped once unused for this long, or when they fall
-// outside the most-used MAX_CATEGORIES. Categories on open tasks are always kept.
-const MAX_CATEGORIES = 20;
-const CATEGORY_STALE_DAYS = 60;
-
-const tasksOf = (storeId: string) => db.collection("stores").doc(storeId).collection("todos");
-const categoriesOf = (storeId: string) => db.collection("stores").doc(storeId).collection("todoCategories");
-const recurringOf = (storeId: string) => db.collection("stores").doc(storeId).collection("todoRecurring");
-
-/** Reject IDs Firestore would treat as a path before they reach `.doc()`. */
-function storeIdParam(c: any): string {
-  const id = c.req.param("storeId");
-  if (!ID_PATTERN.test(id)) throw new HTTPException(404, { message: "Store not found" });
-  return id;
-}
-
-function isValidDate(value: unknown): value is string {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const parsed = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(value);
-}
-
-function addDaysIso(iso: string, days: number): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
-}
-
-/** 1 = Monday ... 7 = Sunday */
-function isoWeekday(iso: string): number {
-  const [y, m, d] = iso.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).getUTCDay() || 7;
-}
-
-/**
- * "Today" as the store sees it. The server runs in UTC while stores don't, so the
- * page sends its own date. It's only trusted within a couple of days of the server
- * clock, so nobody can create copies of recurring tasks for arbitrary dates.
- */
-function storeToday(value: unknown): string {
-  const serverToday = new Date().toISOString().slice(0, 10);
-  if (!isValidDate(value)) return serverToday;
-  const drift = Math.abs(Date.parse(`${value}T00:00:00Z`) - Date.parse(`${serverToday}T00:00:00Z`));
-  return drift <= 2 * 86_400_000 ? value : serverToday;
-}
 
 // ─── Checklists ───────────────────────────────────────────────────────────────
 // A recurring task can carry a checklist, e.g. the kitchen's daily preparations.
@@ -129,88 +100,13 @@ function isValidDays(value: unknown): value is number[] {
   );
 }
 
-const cleanText = (value: unknown) => (typeof value === "string" ? value.normalize("NFC").trim().replace(/\s+/g, " ") : "");
 
-function categoryKey(name: string): string {
-  return createHash("sha256").update(name.toLocaleLowerCase()).digest("hex").slice(0, 20);
-}
-
-const hueDistance = (a: number, b: number) => {
-  const d = Math.abs(a - b) % 360;
-  return d > 180 ? 360 - d : d;
-};
-
-/** A random hue, taking the best of a few tries so categories stay tellable apart. */
-function randomHue(taken: number[]): number {
-  let best = Math.floor(Math.random() * 360);
-  let bestGap = -1;
-  for (let i = 0; i < 8; i++) {
-    const hue = Math.floor(Math.random() * 360);
-    const gap = taken.length ? Math.min(...taken.map((t) => hueDistance(t, hue))) : 360;
-    if (gap > bestGap) {
-      best = hue;
-      bestGap = gap;
-    }
-  }
-  return best;
-}
-
-/** Record one use of a category, creating it (with a random colour) if it's new. */
-export function useCategory(storeId: string, name: string) {
-  const collection = categoriesOf(storeId);
-  const id = categoryKey(name);
-  const ref = collection.doc(id);
-  const now = new Date().toISOString();
-
-  return db.runTransaction(async (tx) => {
-    const snap = await tx.get(ref);
-    if (snap.exists) {
-      const data = snap.data()!;
-      tx.update(ref, { useCount: (data.useCount ?? 0) + 1, lastUsedAt: now });
-      return { id, name: data.name as string, hue: data.hue as number };
-    }
-    const all = await tx.get(collection);
-    const hue = randomHue(all.docs.map((d) => d.data().hue as number));
-    tx.set(ref, { name, hue, useCount: 1, lastUsedAt: now, createdAt: now });
-    return { id, name, hue };
-  });
-}
-
-async function pruneCategories(storeId: string, justUsedId: string) {
-  const snap = await categoriesOf(storeId).get();
-  const staleBefore = new Date(Date.now() - CATEGORY_STALE_DAYS * 86_400_000).toISOString();
-
-  // The category just used always stays, so it takes up one of the MAX_CATEGORIES
-  // slots whatever its count: a brand-new one has the lowest count of all.
-  const others = snap.docs
-    .filter((d) => d.id !== justUsedId)
-    .map((d) => ({ ref: d.ref, id: d.id, useCount: d.data().useCount ?? 0, lastUsedAt: String(d.data().lastUsedAt ?? "") }))
-    .sort((a, b) => b.useCount - a.useCount || b.lastUsedAt.localeCompare(a.lastUsedAt));
-
-  const candidates = others.filter((c, rank) => rank >= MAX_CATEGORIES - 1 || c.lastUsedAt < staleBefore);
-  if (!candidates.length) return;
-
-  // A recurring task keeps needing its category, however long it's been since anyone picked it.
-  const [openSnap, recurringSnap] = await Promise.all([
-    tasksOf(storeId).where("completedAt", "==", null).select("categoryId").limit(MAX_OPEN).get(),
-    recurringOf(storeId).select("categoryId").get(),
-  ]);
-  const inUse = new Set([...openSnap.docs, ...recurringSnap.docs].map((d) => d.data().categoryId));
-
-  const batch = db.batch();
-  candidates.filter((c) => !inUse.has(c.id)).forEach((c) => batch.delete(c.ref));
-  await batch.commit();
-}
-
-const serialize = (doc: FirebaseFirestore.DocumentSnapshot) => ({ id: doc.id, ...doc.data() });
 
 // ─── Recurring tasks ──────────────────────────────────────────────────────────
 // A recurring task is a template. Each day it's due, a normal task is created from
 // it, so completing, swiping and undo all work unchanged. Copies are only made for
 // today and tomorrow, when someone opens the list: a day nobody opened is skipped
 // instead of piling up as overdue work.
-
-const ALREADY_EXISTS = 6;
 
 /** Each template's copy for a date has a fixed ID, so concurrent loads can't duplicate it. */
 const copyId = (recurringId: string, date: string) => `r_${recurringId}_${date}`;
@@ -367,8 +263,12 @@ todo.get("/stores/:storeId/board", async (c) => {
   const storeId = storeIdParam(c);
   const tasks = tasksOf(storeId);
 
-  const templates = await recurringOf(storeId).get();
-  await createRecurringCopies(storeId, storeToday(c.req.query("today")), templates.docs);
+  const today = storeToday(c.req.query("today"));
+  const [templates, stockConfig] = await Promise.all([recurringOf(storeId).get(), loadStockConfig(storeId)]);
+  await Promise.all([
+    createRecurringCopies(storeId, today, templates.docs),
+    ensureStockCards(storeId, today, stockConfig),
+  ]);
 
   // `> ""` keeps this on Firestore's automatic single-field index and skips open
   // tasks, whose completedAt is null. No composite index needs deploying.
@@ -380,9 +280,12 @@ todo.get("/stores/:storeId/board", async (c) => {
   ]);
   if (!store.exists) throw new HTTPException(404, { message: "Store not found" });
 
+  const openTasks = open.docs.map(serialize);
+  await withStockProgress(storeId, openTasks, stockConfig);
+
   return c.json({
     storeName: store.data()!.name,
-    open: open.docs.map(serialize),
+    open: openTasks,
     completed: completed.docs.map(serialize),
     categories: categories.docs.map((d) => ({ id: d.id, name: d.data().name, hue: d.data().hue })),
     recurring: templates.docs
@@ -600,5 +503,8 @@ todo.delete("/stores/:storeId/tasks/:taskId", async (c) => {
   await tasksOf(storeId).doc(taskId).delete();
   return c.json({ ok: true });
 });
+
+// The stock card: ideal quantities, counting, and what to prepare. After the token check above.
+todo.route("/stores/:storeId/stock", stockRouter);
 
 export { todo as todoRouter };

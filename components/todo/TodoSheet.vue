@@ -28,7 +28,10 @@
             </button>
           </div>
         </header>
-        <div class="body"><slot /></div>
+        <!-- Optional parts that stay put while the list scrolls: tabs or a meter above it, a button below -->
+        <div v-if="$slots.top" class="top"><slot name="top" /></div>
+        <div class="body" :class="{ 'has-footer': !!$slots.footer }"><slot /></div>
+        <footer v-if="$slots.footer" class="foot"><slot name="footer" /></footer>
       </section>
     </div>
   </Transition>
@@ -194,6 +197,22 @@ h2 {
   padding: 8px 24px calc(24px + env(safe-area-inset-bottom));
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+.top {
+  flex: none;
+  padding: 0 24px 8px;
+}
+
+.body.has-footer {
+  padding-bottom: 12px;
+}
+
+.foot {
+  flex: none;
+  padding: 12px 24px calc(14px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--outline-variant);
+  background: var(--surface-low);
 }
 
 .sheet-enter-active .scrim {

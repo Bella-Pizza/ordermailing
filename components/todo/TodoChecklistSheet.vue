@@ -1,5 +1,5 @@
 <template>
-  <TodoSheet :open="open" :title="task?.title ?? ''" @close="emit('close')">
+  <TodoSheet :open="open" :title="task ? taskTitle(task, t, locale) : ''" @close="emit('close')">
     <template v-if="task?.checklist">
       <div class="progress" role="progressbar" :aria-valuenow="doneCount" aria-valuemin="0" :aria-valuemax="total" :aria-label="t('todo.checklist.progress', { done: doneCount, total })">
         <div class="progress-text">
@@ -20,18 +20,23 @@
             @click="emit('toggle', index, !item.done)"
           >
             <span class="box" aria-hidden="true"><Check :size="18" :stroke-width="3" /></span>
-            <span class="name">{{ item.name }}</span>
-            <span v-if="item.qty !== null" class="qty">{{ t("todo.checklist.max", { n: item.qty }) }}</span>
+            <span class="name">
+              {{ item.name }}
+              <span v-if="partsText(item)" class="parts">{{ partsText(item) }}</span>
+            </span>
+            <span v-if="item.qty !== null" class="qty">
+              {{ isPrep ? `× ${formatQty(item.qty)}` : t("todo.checklist.max", { n: item.qty }) }}
+            </span>
           </button>
         </li>
       </ul>
 
       <div class="actions">
-        <button v-if="task.recurringId" class="text-button state-layer" type="button" @click="emit('editSeries', task.recurringId)">
+        <button v-if="task.recurringId && !isPrep" class="text-button state-layer" type="button" @click="emit('editSeries', task.recurringId)">
           <Repeat :size="18" aria-hidden="true" />
           {{ t("todo.recurring.editSeries") }}
         </button>
-        <button class="text-button state-layer" type="button" @click="emit('editTask', task)">
+        <button v-if="!isPrep" class="text-button state-layer" type="button" @click="emit('editTask', task)">
           <Pencil :size="18" aria-hidden="true" />
           {{ t("todo.checklist.editTask") }}
         </button>
@@ -44,7 +49,9 @@
 import { computed } from "vue";
 import { Check, Pencil, Repeat } from "lucide-vue-next";
 import TodoSheet from "./TodoSheet.vue";
-import type { TodoTask } from "@/lib/todoApi";
+import { taskTitle, type ChecklistItem, type TodoTask } from "@/lib/todoApi";
+import { formatQty } from "@/lib/stockCalc";
+import { LOCATIONS } from "@/lib/stockCalc";
 import { useLocale } from "@/lib/useLocale";
 
 const props = defineProps<{ open: boolean; task: TodoTask | null }>();
@@ -54,7 +61,16 @@ const emit = defineEmits<{
   editTask: [task: TodoTask];
   editSeries: [recurringId: string];
 }>();
-const { t } = useLocale();
+const { t, locale } = useLocale();
+
+// The stock card's "to prepare" list is made from a count, so it isn't edited like other tasks
+const isPrep = computed(() => props.task?.stock?.kind === "prep");
+
+/** Where a prepared quantity is missing: "cold room 2 · makeline 1" */
+const partsText = (item: ChecklistItem) =>
+  LOCATIONS.filter((location) => item.parts?.[location])
+    .map((location) => t(`todo.stock.parts.${location}`, { n: formatQty(item.parts![location]!) }))
+    .join(" · ");
 
 const total = computed(() => props.task?.checklist?.length ?? 0);
 const doneCount = computed(() => props.task?.checklist?.filter((i) => i.done).length ?? 0);
@@ -148,6 +164,13 @@ const doneCount = computed(() => props.task?.checklist?.filter((i) => i.done).le
 .done .name {
   color: var(--on-surface-variant);
   text-decoration: line-through;
+}
+
+.parts {
+  display: block;
+  color: var(--on-surface-variant);
+  font-size: 13px;
+  font-weight: 400;
 }
 
 .qty {

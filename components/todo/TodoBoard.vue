@@ -12,6 +12,17 @@
           class="icon-button state-layer"
           type="button"
           :disabled="status !== 'ready'"
+          :aria-label="t('todo.stock.settingsTitle')"
+          :title="t('todo.stock.settingsTitle')"
+          aria-haspopup="dialog"
+          @click="stockSettingsOpen = true"
+        >
+          <Boxes :size="22" aria-hidden="true" />
+        </button>
+        <button
+          class="icon-button state-layer"
+          type="button"
+          :disabled="status !== 'ready'"
           :aria-label="t('todo.recurring.title')"
           :title="t('todo.recurring.title')"
           aria-haspopup="dialog"
@@ -132,6 +143,24 @@
       @add="openAddRecurring"
     />
 
+    <TodoStockCountSheet
+      :open="stockCountOpen"
+      :task="stockCountTask"
+      :store-id="store.id"
+      :token="token"
+      @close="stockCountOpen = false"
+      @finished="onStockFinished"
+      @error="failed"
+    />
+
+    <TodoStockSettingsSheet
+      :open="stockSettingsOpen"
+      :store-id="store.id"
+      :token="token"
+      @close="stockSettingsOpen = false"
+      @error="failed"
+    />
+
     <TodoSheet :open="drawerOpen" :title="t('todo.board.completed')" @close="drawerOpen = false">
       <p v-if="!completed.length" class="drawer-empty">{{ t("todo.board.emptyCompleted") }}</p>
       <TransitionGroup v-else tag="ul" name="done" class="done-list">
@@ -139,13 +168,13 @@
           <button
             class="done-reopen state-layer"
             type="button"
-            :aria-label="t('todo.task.reopenNamed', { title: task.title })"
+            :aria-label="t('todo.task.reopenNamed', { title: taskTitle(task, t, locale) })"
             @click="reopenTask(task)"
           >
             <span class="done-ring"><Check :size="18" :stroke-width="3" aria-hidden="true" /></span>
           </button>
           <div class="done-text">
-            <span class="done-title">{{ task.title }}</span>
+            <span class="done-title">{{ taskTitle(task, t, locale) }}</span>
             <span class="done-meta">
               <span class="category-chip done-chip" :style="{ '--hue': task.categoryHue }">{{ task.categoryName }}</span>
               {{ completedLabel(task) }}
@@ -154,7 +183,7 @@
           <button
             class="done-delete state-layer"
             type="button"
-            :aria-label="t('todo.task.deleteNamed', { title: task.title })"
+            :aria-label="t('todo.task.deleteNamed', { title: taskTitle(task, t, locale) })"
             @click="removeTask(task)"
           >
             <Trash2 :size="20" aria-hidden="true" />
@@ -179,6 +208,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
 import {
+  Boxes,
   Check,
   CheckCheck,
   ChevronsUpDown,
@@ -192,6 +222,8 @@ import TodoChecklistSheet from "./TodoChecklistSheet.vue";
 import TodoItem from "./TodoItem.vue";
 import TodoRecurringSheet from "./TodoRecurringSheet.vue";
 import TodoSheet from "./TodoSheet.vue";
+import TodoStockCountSheet from "./TodoStockCountSheet.vue";
+import TodoStockSettingsSheet from "./TodoStockSettingsSheet.vue";
 import TodoTaskSheet from "./TodoTaskSheet.vue";
 import {
   addDays,
@@ -202,6 +234,7 @@ import {
   fetchBoard,
   isoDay,
   parseDay,
+  taskTitle,
   TodoApiError,
   updateRecurring,
   updateTask,
@@ -244,8 +277,18 @@ const checklistOpen = ref(false);
 const checklistTaskId = ref<string | null>(null);
 // Looked up live, so ticks (and background refreshes) show in the open sheet.
 const checklistTask = computed(() => open.value.find((task) => task.id === checklistTaskId.value) ?? null);
+const stockSettingsOpen = ref(false);
+const stockCountOpen = ref(false);
+const stockCountTaskId = ref<string | null>(null);
+const stockCountTask = computed(() => open.value.find((task) => task.id === stockCountTaskId.value) ?? null);
 const anySheetOpen = computed(
-  () => taskSheetOpen.value || drawerOpen.value || recurringSheetOpen.value || checklistOpen.value,
+  () =>
+    taskSheetOpen.value ||
+    drawerOpen.value ||
+    recurringSheetOpen.value ||
+    checklistOpen.value ||
+    stockSettingsOpen.value ||
+    stockCountOpen.value,
 );
 const editingTask = shallowRef<TodoTask | null>(null);
 const editingRecurring = shallowRef<RecurringTask | null>(null);
@@ -572,7 +615,10 @@ const openAdd = () => openTaskSheet({});
 
 // A task with a checklist opens the list to tick off; its details are a tap further.
 function openEdit(task: TodoTask) {
-  if (task.checklist?.length) {
+  if (task.stock?.kind === "count") {
+    stockCountTaskId.value = task.id;
+    stockCountOpen.value = true;
+  } else if (task.checklist?.length) {
     checklistTaskId.value = task.id;
     checklistOpen.value = true;
   } else {
@@ -609,6 +655,19 @@ async function toggleChecklistItem(index: number, done: boolean) {
     if (card) completeTask(latest, card, false);
   }
 }
+// The count is done and the server has written the "to prepare" list: the count card
+// flies into the drawer, and the list shows up on the board.
+async function onStockFinished(prepare: number) {
+  const card = stockCountTask.value
+    ? root.value?.querySelector<HTMLElement>(`[data-task-id="${stockCountTask.value.id}"] .todo-card`)
+    : null;
+  stockCountOpen.value = false;
+  await sleep(320); // lets the sheet slide away first
+  if (card?.isConnected) flyToDrawer(card);
+  showSnackbar(prepare ? t("todo.stock.finished", { n: prepare }) : t("todo.stock.finishedNone"));
+  await load();
+}
+
 const openAddRecurring = () => openTaskSheet({ repeating: true, fromList: true });
 const openEditRecurring = (item: RecurringTask) => openTaskSheet({ recurring: item, fromList: true });
 
@@ -759,6 +818,10 @@ async function saveTask(input: TaskInput) {
   margin-left: auto;
   border-radius: 50%;
   color: var(--on-surface-variant);
+}
+
+.icon-button + .icon-button {
+  margin-left: 0;
 }
 
 .lang {

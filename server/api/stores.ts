@@ -5,6 +5,7 @@ import { verifyAuthWithProfile } from "../auth";
 import { copyStoreSuppliers } from "../store-access";
 import { isValidPin, setTodoPin } from "../todo-access";
 import { copyRecurringTasks } from "./todo";
+import { copyStockConfig } from "../stock";
 
 const stores = new Hono();
 
@@ -146,7 +147,9 @@ stores.post("/:id/copy-recurring", async (c) => {
   if (!source.exists || !target.exists) throw new HTTPException(404, { message: "Store not found" });
 
   const result = await copyRecurringTasks(sourceStoreId, targetStoreId);
-  return c.json({ ok: true, ...result });
+  // The stock card's ideal quantities travel along, but never over a store's own.
+  const stock = await copyStockConfig(sourceStoreId, targetStoreId);
+  return c.json({ ok: true, ...result, stock });
 });
 
 // ─── POST /api/stores/migrate — one-time backfill (admin, idempotent) ────────

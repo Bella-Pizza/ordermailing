@@ -22,14 +22,14 @@
         class="todo-check state-layer"
         type="button"
         data-no-swipe
-        :aria-label="t('todo.task.completeNamed', { title: task.title })"
+        :aria-label="t('todo.task.completeNamed', { title })"
         @click="complete"
       >
         <span class="todo-check-ring"><Check :size="20" :stroke-width="3" aria-hidden="true" /></span>
       </button>
 
-      <button class="todo-body" type="button" :aria-label="t('todo.task.editNamed', { title: task.title })" @click="emit('edit')">
-        <span class="todo-title">{{ task.title }}</span>
+      <button class="todo-body" type="button" :aria-label="t('todo.task.editNamed', { title })" @click="emit('edit')">
+        <span class="todo-title">{{ title }}</span>
         <span class="todo-meta">
           <span class="category-chip todo-chip" :style="{ '--hue': task.categoryHue }">
             <span class="todo-chip-label">{{ task.categoryName }}</span>
@@ -44,7 +44,8 @@
             :class="{ complete: checklistDone === checklistTotal }"
             :aria-label="t('todo.checklist.progress', { done: checklistDone, total: checklistTotal })"
           >
-            <ListChecks :size="15" aria-hidden="true" />
+            <Boxes v-if="isCount" :size="15" aria-hidden="true" />
+            <ListChecks v-else :size="15" aria-hidden="true" />
             {{ checklistDone }}/{{ checklistTotal }}
           </span>
         </span>
@@ -59,14 +60,18 @@
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { Check, ListChecks, Repeat, Trash2 } from "lucide-vue-next";
+import { Boxes, Check, ListChecks, Repeat, Trash2 } from "lucide-vue-next";
 import TodoFlame from "./TodoFlame.vue";
-import type { TodoTask } from "@/lib/todoApi";
+import { taskTitle, type TodoTask } from "@/lib/todoApi";
 import { useLocale } from "@/lib/useLocale";
 
 const props = defineProps<{ task: TodoTask; dateLabel?: string; overdue?: boolean }>();
-const checklistTotal = computed(() => props.task.checklist?.length ?? 0);
-const checklistDone = computed(() => props.task.checklist?.filter((i) => i.done).length ?? 0);
+// A "count the stock" card shows how far the count has got; any other task, its checklist.
+const isCount = computed(() => props.task.stock?.kind === "count");
+const checklistTotal = computed(() => (isCount.value ? (props.task.stock?.total ?? 0) : (props.task.checklist?.length ?? 0)));
+const checklistDone = computed(() =>
+  isCount.value ? (props.task.stock?.done ?? 0) : (props.task.checklist?.filter((i) => i.done).length ?? 0),
+);
 const emit = defineEmits<{
   complete: [card: HTMLElement, swiped: boolean];
   /** Completing was refused: this many checklist items are still open */
@@ -75,7 +80,8 @@ const emit = defineEmits<{
   edit: [];
   swiped: [];
 }>();
-const { t } = useLocale();
+const { t, locale } = useLocale();
+const title = computed(() => taskTitle(props.task, t, locale.value));
 
 const INTENT_PX = 10;
 const COMMIT_RATIO = 0.35;
@@ -105,6 +111,8 @@ function refuse() {
 }
 
 function complete() {
+  // A count isn't finished by ticking it: it's opened, counted, and finished from there.
+  if (isCount.value) return emit("edit");
   if (remaining.value > 0) return refuse();
   checked.value = true;
   emit("complete", card.value!, false);
@@ -156,7 +164,10 @@ function onPointerUp(event: PointerEvent) {
   armed.value = false;
   emit("swiped");
 
-  if (offset.value > 0 && remaining.value > 0) {
+  if (offset.value > 0 && isCount.value) {
+    offset.value = 0;
+    emit("edit");
+  } else if (offset.value > 0 && remaining.value > 0) {
     offset.value = 0;
     refuse();
   } else if (offset.value > 0) {

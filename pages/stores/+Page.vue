@@ -454,8 +454,13 @@ async function executeCopyTodos() {
       body: JSON.stringify({ targetStoreId: copyTodosTargetId.value }),
     });
     if (!res.ok) throw new Error(String(res.status));
-    const { copied, skipped } = await res.json();
-    copyTodosMessage.value = t("stores.copyTodos.result", { copied, skipped });
+    const { copied, skipped, stock } = await res.json();
+    copyTodosMessage.value = [
+      t("stores.copyTodos.result", { copied, skipped }),
+      stock === "copied" ? t("stores.copyTodos.stockCopied") : stock === "skipped" ? t("stores.copyTodos.stockSkipped") : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
     copyTodosDone.value = true;
   } catch {
     copyTodosMessage.value = t("stores.copyTodos.error");
