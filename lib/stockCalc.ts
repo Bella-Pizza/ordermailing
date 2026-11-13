@@ -4,7 +4,10 @@
 // Each product has an ideal quantity per weekday in two places: the back storage
 // ("chambre froide") and the little service fridge in front ("makeline"). The day
 // before an open day, both places are counted. Each place is topped up to its own
-// ideal; what's missing, added together, is what has to be prepared.
+// ideal. What has to be prepared is
+//   todo = idealStock - makelineStock - fridgeStock
+// where idealStock is the two ideals added together, so a surplus in one place makes up
+// for a shortage in the other.
 
 export type Location = "chambre" | "makeline";
 export const LOCATIONS: readonly Location[] = ["chambre", "makeline"];
@@ -75,7 +78,7 @@ export type StockLine = {
   /** null: nothing to count in that place on this weekday */
   chambre: LocationLine | null;
   makeline: LocationLine | null;
-  /** Missing in both places together, counting only what has been counted so far */
+  /** idealStock - makelineStock - fridgeStock, counting only the places counted so far (never below 0) */
   toPrepare: number;
 };
 
@@ -93,16 +96,20 @@ export function stockLines(items: StockItem[], counts: StockCounts, weekday: num
     const chambre = line("chambre");
     const makeline = line("makeline");
     if (!chambre && !makeline) return [];
-    return [{ item, chambre, makeline, toPrepare: (chambre?.missing ?? 0) + (makeline?.missing ?? 0) }];
+    const short = LOCATIONS.reduce((sum, location) => {
+      const entry = location === "chambre" ? chambre : makeline;
+      return entry && entry.counted !== null ? sum + entry.ideal - entry.counted : sum;
+    }, 0);
+    return [{ item, chambre, makeline, toPrepare: Math.max(0, short) }];
   });
 }
 
-/** How many (product, place) counts there are in total, and how many are done. */
-export function countProgress(lines: StockLine[]): { total: number; counted: number } {
+/** How many (product, place) counts there are in total, and how many are done. One place, or both. */
+export function countProgress(lines: StockLine[], only?: Location): { total: number; counted: number } {
   let total = 0;
   let counted = 0;
   for (const line of lines) {
-    for (const location of LOCATIONS) {
+    for (const location of only ? [only] : LOCATIONS) {
       const entry = line[location];
       if (!entry) continue;
       total++;
@@ -111,6 +118,9 @@ export function countProgress(lines: StockLine[]): { total: number; counted: num
   }
   return { total, counted };
 }
+
+/** The places a count card is for, in the order they're counted: makeline first, then the fridge. */
+export const COUNT_ORDER: readonly Location[] = ["makeline", "chambre"];
 
 export type PrepEntry = {
   item: StockItem;
@@ -123,10 +133,13 @@ export function prepList(lines: StockLine[]): PrepEntry[] {
   return lines
     .filter((line) => line.toPrepare > 0)
     .map((line) => {
+      // Where it goes: the makeline is topped up first, then the fridge, never more than the total.
       const parts: Partial<Record<Location, number>> = {};
-      for (const location of LOCATIONS) {
-        const missing = line[location]?.missing;
-        if (missing) parts[location] = missing;
+      let left = line.toPrepare;
+      for (const location of ["makeline", "chambre"] as const) {
+        const share = Math.min(line[location]?.missing ?? 0, left);
+        if (share) parts[location] = share;
+        left -= share;
       }
       return { item: line.item, qty: line.toPrepare, parts };
     });

@@ -24,7 +24,15 @@ export type TodoTask = {
    * "to prepare" list that comes out of that count. `done`/`total` are how far the
    * count has got, filled in by the server for count cards.
    */
-  stock?: { kind: "count" | "prep"; targetDate: string; done?: number; total?: number };
+  stock?: {
+    kind: "count" | "prep";
+    /** On a count card: the place it counts. The fridge ("chambre") card is locked until the makeline is done. */
+    location?: Location;
+    targetDate: string;
+    done?: number;
+    total?: number;
+    locked?: boolean;
+  };
 };
 
 export type ChecklistItem = {
@@ -146,7 +154,7 @@ export const deleteStockItem = (storeId: string, token: string, itemId: string) 
   request<{ ok: true }>(`/stores/${storeId}/stock/items/${itemId}`, { method: "DELETE", token });
 
 export const fetchStockCount = (storeId: string, token: string, date: string) =>
-  request<{ targetDate: string; counts: StockCounts; finishedAt: string | null }>(
+  request<{ targetDate: string; counts: StockCounts; finishedAt: string | null; makelineFinished: boolean }>(
     `/stores/${storeId}/stock/counts/${date}`,
     { token },
   );
@@ -165,8 +173,13 @@ export const setStockCount = (
     body: { itemId, location, value },
   });
 
-export const finishStockCount = (storeId: string, token: string, date: string) =>
-  request<{ prepare: number }>(`/stores/${storeId}/stock/counts/${date}/finish`, { method: "POST", token, body: {} });
+/** Finishes one place. The makeline unlocks the fridge (prepare is null); the fridge writes the "to prepare" list. */
+export const finishStockCount = (storeId: string, token: string, date: string, location: Location) =>
+  request<{ location: Location; prepare: number | null }>(`/stores/${storeId}/stock/counts/${date}/finish`, {
+    method: "POST",
+    token,
+    body: { location },
+  });
 
 export const createRecurring = (storeId: string, token: string, input: RecurringInput) =>
   request<RecurringTask>(`/stores/${storeId}/recurring`, { method: "POST", token, body: input });
@@ -257,7 +270,8 @@ export function taskTitle(
 ): string {
   if (!task.stock) return task.title;
   const day = weekdayName(weekdayOf(task.stock.targetDate), locale);
-  return t(task.stock.kind === "count" ? "todo.stock.countTitle" : "todo.stock.prepTitle", { day });
+  if (task.stock.kind === "prep") return t("todo.stock.prepTitle", { day });
+  return t(task.stock.location === "chambre" ? "todo.stock.countTitle.chambre" : "todo.stock.countTitle.makeline", { day });
 }
 
 /** Full day name, e.g. for screen readers next to the two-letter abbreviation. */

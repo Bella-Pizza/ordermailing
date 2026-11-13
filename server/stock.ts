@@ -19,6 +19,7 @@ import {
 } from "./todo-shared";
 import {
   LOCATIONS,
+  COUNT_ORDER,
   countProgress,
   isQty,
   nextOpenDate,
@@ -35,7 +36,9 @@ import {
 // back storage and the service fridge) lives in ONE document, stock/config, whose
 // changes are field-level so two people editing different cells never overwrite each
 // other. The day before every open day a "count the stock" card appears on the board;
-// once everything is counted, what's missing becomes a "to prepare" checklist.
+// that is two cards in a row: "fill and count the makeline" first, and only once that is
+// finished the "fill and count the fridge" card unlocks. When the fridge is counted too,
+// what's missing (ideal - makeline - fridge) becomes a "to prepare" checklist.
 
 const MAX_NAME = 60;
 const MAX_ITEMS = 150;
@@ -44,7 +47,12 @@ const STOCK_CATEGORY = "Stock";
 // Cards and prep lists are ordinary tasks with fixed IDs keyed on the day they prepare
 // for, so a second device can't create a duplicate. Their titles are written by the
 // page, in the viewer's language, so the stored one is only a neutral fallback.
-const countCardId = (target: string) => `stockcount_${target}`;
+// The makeline card keeps the id the old single count card had, so one waiting at the
+// time of the change simply becomes the makeline card.
+const countCardId = (target: string, location: Location = "makeline") =>
+  location === "makeline" ? `stockcount_${target}` : `stockfridge_${target}`;
+/** Bumped when the cards change shape, so the ones still waiting are rebuilt once. */
+const CARDS_VERSION = 2;
 const prepTaskId = (target: string) => `stockprep_${target}`;
 
 type RawItem = { name: string; order?: number; chambre?: Record<string, number>; makeline?: Record<string, number> };
@@ -67,6 +75,7 @@ export type StockConfig = {
   cardsThrough: string | null;
   /** Which weekdays were open ("134567") when those cards were made */
   openSignature: string | null;
+  cardsVersion: number;
 };
 
 export async function loadStockConfig(storeId: string): Promise<StockConfig> {
@@ -75,6 +84,7 @@ export async function loadStockConfig(storeId: string): Promise<StockConfig> {
     items: toItems(data?.items),
     cardsThrough: (data?.cardsThrough as string | undefined) ?? null,
     openSignature: (data?.openSignature as string | undefined) ?? null,
+    cardsVersion: (data?.cardsVersion as number | undefined) ?? 1,
   };
 }
 
@@ -104,6 +114,9 @@ function itemIdParam(c: any): string {
   if (!ID_PATTERN.test(id)) throw new HTTPException(404, { message: "Product not found" });
   return id;
 }
+
+/** The makeline is done: the fridge card is open. (A count finished in one go before the cards were split counts too.) */
+const isMakelineFinished = (counts: Record<string, any> | undefined) => !!(counts?.makelineFinishedAt || counts?.finishedAt);
 
 /** The day a count is for. Kept within a couple of months of now, so nobody can fill the database with junk dates. */
 function targetDateParam(c: any): string {
@@ -192,7 +205,12 @@ stockRouter.delete("/items/:itemId", async (c) => {
 stockRouter.get("/counts/:date", async (c) => {
   const date = targetDateParam(c);
   const data = (await stockCountsOf(storeIdParam(c)).doc(date).get()).data();
-  return c.json({ targetDate: date, counts: (data?.counts ?? {}) as StockCounts, finishedAt: data?.finishedAt ?? null });
+  return c.json({
+    targetDate: date,
+    counts: (data?.counts ?? {}) as StockCounts,
+    finishedAt: data?.finishedAt ?? null,
+    makelineFinished: isMakelineFinished(data),
+  });
 });
 
 // PATCH /counts/:date — set (or clear, with null) ONE product's count in ONE place.
@@ -207,8 +225,11 @@ stockRouter.patch("/counts/:date", async (c) => {
   if (!LOCATIONS.includes(location as Location)) throw new HTTPException(400, { message: "Invalid place" });
   if (value !== null && !isQty(value)) throw new HTTPException(400, { message: "Invalid quantity" });
 
-  const { items } = await loadStockConfig(storeId);
+  const [{ items }, saved] = await Promise.all([loadStockConfig(storeId), stockCountsOf(storeId).doc(date).get()]);
   if (!items.some((item) => item.id === itemId)) throw new HTTPException(404, { message: "Product not found" });
+  if (location === "chambre" && !isMakelineFinished(saved.data())) {
+    throw new HTTPException(409, { message: "Finish the makeline first" });
+  }
 
   await stockCountsOf(storeId)
     .doc(date)
@@ -223,20 +244,36 @@ stockRouter.patch("/counts/:date", async (c) => {
   return c.json({ ok: true });
 });
 
-// POST /counts/:date/finish — everything is counted: write the "to prepare" list for
-// that day and complete the count card.
+// POST /counts/:date/finish { location } — one place is counted. The makeline finishing
+// unlocks the fridge card; the fridge finishing writes the "to prepare" list for that day.
 stockRouter.post("/counts/:date/finish", async (c) => {
   const storeId = storeIdParam(c);
   const date = targetDateParam(c);
+  const body = await c.req.json<Record<string, unknown>>().catch(() => ({} as Record<string, unknown>));
+  if (!LOCATIONS.includes(body.location as Location)) throw new HTTPException(400, { message: "Invalid place" });
+  const place = body.location as Location;
 
   const [{ items }, countSnap] = await Promise.all([loadStockConfig(storeId), stockCountsOf(storeId).doc(date).get()]);
   const lines = stockLines(items, (countSnap.data()?.counts ?? {}) as StockCounts, weekdayOfIso(date));
-  const { total, counted } = countProgress(lines);
-  if (!total) throw new HTTPException(409, { message: "Nothing to count for that day" });
-  if (counted < total) return c.json({ error: "incomplete", remaining: total - counted }, 409);
+  const mine = countProgress(lines, place);
+  if (!mine.total) throw new HTTPException(409, { message: "Nothing to count for that day" });
+  if (mine.counted < mine.total) return c.json({ error: "incomplete", remaining: mine.total - mine.counted }, 409);
 
-  const prep = prepList(lines);
   const now = new Date().toISOString();
+  const completeCard = async () => {
+    const card = tasksOf(storeId).doc(countCardId(date, place));
+    const cardData = (await card.get()).data();
+    if (cardData && cardData.completedAt === null) await card.update({ completedAt: now });
+  };
+
+  if (place === "makeline") {
+    await stockCountsOf(storeId).doc(date).set({ targetDate: date, makelineFinishedAt: now }, { merge: true });
+    await completeCard();
+    return c.json({ location: place, prepare: null });
+  }
+
+  if (!isMakelineFinished(countSnap.data())) throw new HTTPException(409, { message: "Finish the makeline first" });
+  const prep = prepList(lines);
   const prepRef = tasksOf(storeId).doc(prepTaskId(date));
   const existing = await prepRef.get();
 
@@ -269,19 +306,16 @@ stockRouter.post("/counts/:date/finish", async (c) => {
   }
 
   await stockCountsOf(storeId).doc(date).set({ targetDate: date, finishedAt: now }, { merge: true });
-
-  const card = tasksOf(storeId).doc(countCardId(date));
-  const cardData = (await card.get()).data();
-  if (cardData && cardData.completedAt === null) await card.update({ completedAt: now });
-
-  return c.json({ prepare: prep.length });
+  await completeCard();
+  return c.json({ location: place, prepare: prep.length });
 });
 
 // ─── Used by the board ────────────────────────────────────────────────────────
 
 /**
- * Puts today's and tomorrow's "count the stock" card on the board: on every open day,
- * a count for the next open day. A day where every quantity is 0 is a closed day: it
+ * Puts today's and tomorrow's "fill and count" cards on the board: on every open day,
+ * a makeline card and a fridge card for the next open day (the fridge one waits locked
+ * until the makeline is done). A day where every quantity is 0 is a closed day: it
  * gets no card, and the count before it prepares for the next open day instead.
  *
  * Cards are made once per day and then left alone, so a card someone deleted (say, for
@@ -293,11 +327,14 @@ export async function ensureStockCards(storeId: string, today: string, config: S
   const signature = open.join("");
   const tomorrow = addDaysIso(today, 1);
 
-  const changed = config.openSignature !== null && config.openSignature !== signature;
+  const changed =
+    (config.openSignature !== null && config.openSignature !== signature) || config.cardsVersion < CARDS_VERSION;
   if (changed) await removeUpcomingCountCards(storeId, today);
 
   if (!open.length) {
-    if (changed) await stockConfigOf(storeId).set({ cardsThrough: null, openSignature: signature }, { merge: true });
+    if (changed) {
+      await stockConfigOf(storeId).set({ cardsThrough: null, openSignature: signature, cardsVersion: CARDS_VERSION }, { merge: true });
+    }
     return;
   }
 
@@ -310,26 +347,28 @@ export async function ensureStockCards(storeId: string, today: string, config: S
     if (!open.includes(isoWeekday(date))) continue; // closed: nobody counts
     const target = nextOpenDate(date, open)!;
     category ??= await useCategory(storeId, STOCK_CATEGORY);
-    await tasksOf(storeId)
-      .doc(countCardId(target))
-      .create({
-        title: "Stock count",
-        dueDate: date,
-        importance: 2,
-        categoryId: category.id,
-        categoryName: category.name,
-        categoryHue: category.hue,
-        checklist: null,
-        stock: { kind: "count", targetDate: target },
-        completedAt: null,
-        createdAt: new Date().toISOString(),
-      })
-      .catch((err) => {
-        // Made by another device a moment ago, or a count that was already finished
-        if (err.code !== ALREADY_EXISTS) throw err;
-      });
+    for (const location of COUNT_ORDER) {
+      await tasksOf(storeId)
+        .doc(countCardId(target, location))
+        .create({
+          title: "Stock count",
+          dueDate: date,
+          importance: 2,
+          categoryId: category.id,
+          categoryName: category.name,
+          categoryHue: category.hue,
+          checklist: null,
+          stock: { kind: "count", location, targetDate: target },
+          completedAt: null,
+          createdAt: new Date().toISOString(),
+        })
+        .catch((err) => {
+          // Made by another device a moment ago, or a count that was already finished
+          if (err.code !== ALREADY_EXISTS) throw err;
+        });
+    }
   }
-  await stockConfigOf(storeId).set({ cardsThrough: tomorrow, openSignature: signature }, { merge: true });
+  await stockConfigOf(storeId).set({ cardsThrough: tomorrow, openSignature: signature, cardsVersion: CARDS_VERSION }, { merge: true });
 }
 
 /**
@@ -345,15 +384,20 @@ async function removeUpcomingCountCards(storeId: string, today: string) {
   await batch.commit();
 }
 
-/** Adds "counted / total" to each open count card, worked out from what's been counted so far. */
+/**
+ * Adds "counted / total" to each open count card, worked out from what's been counted so
+ * far, and says whether a fridge card is still locked behind the makeline.
+ */
 export async function withStockProgress(storeId: string, tasks: Record<string, any>[], config: StockConfig) {
   const cards = tasks.filter((task) => task.stock?.kind === "count");
   if (!cards.length) return;
   const snaps = await Promise.all(cards.map((card) => stockCountsOf(storeId).doc(card.stock.targetDate).get()));
   cards.forEach((card, index) => {
-    const lines = stockLines(config.items, (snaps[index].data()?.counts ?? {}) as StockCounts, weekdayOfIso(card.stock.targetDate));
-    const { total, counted } = countProgress(lines);
-    card.stock = { ...card.stock, total, done: counted };
+    const location: Location = card.stock.location === "chambre" ? "chambre" : "makeline";
+    const data = snaps[index].data();
+    const lines = stockLines(config.items, (data?.counts ?? {}) as StockCounts, weekdayOfIso(card.stock.targetDate));
+    const { total, counted } = countProgress(lines, location);
+    card.stock = { ...card.stock, location, total, done: counted, locked: location === "chambre" && !isMakelineFinished(data) };
   });
 }
 

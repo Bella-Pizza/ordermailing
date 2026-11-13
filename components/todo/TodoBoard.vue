@@ -616,6 +616,7 @@ const openAdd = () => openTaskSheet({});
 // A task with a checklist opens the list to tick off; its details are a tap further.
 function openEdit(task: TodoTask) {
   if (task.stock?.kind === "count") {
+    if (task.stock.locked) return showSnackbar(t("todo.stock.locked"));
     stockCountTaskId.value = task.id;
     stockCountOpen.value = true;
   } else if (task.checklist?.length) {
@@ -657,14 +658,16 @@ async function toggleChecklistItem(index: number, done: boolean) {
 }
 // The count is done and the server has written the "to prepare" list: the count card
 // flies into the drawer, and the list shows up on the board.
-async function onStockFinished(prepare: number) {
+async function onStockFinished(_location: unknown, prepare: number | null) {
   const card = stockCountTask.value
     ? root.value?.querySelector<HTMLElement>(`[data-task-id="${stockCountTask.value.id}"] .todo-card`)
     : null;
   stockCountOpen.value = false;
   await sleep(320); // lets the sheet slide away first
   if (card?.isConnected) flyToDrawer(card);
-  showSnackbar(prepare ? t("todo.stock.finished", { n: prepare }) : t("todo.stock.finishedNone"));
+  // The makeline is done: the fridge card is open now. The fridge is the last step.
+  if (prepare === null) showSnackbar(t("todo.stock.makelineDone"));
+  else showSnackbar(prepare ? t("todo.stock.finished", { n: prepare }) : t("todo.stock.finishedNone"));
   await load();
 }
 

@@ -9,7 +9,7 @@
     <article
       ref="card"
       class="todo-card"
-      :class="{ settling: !dragging, done: checked, rejected }"
+      :class="{ settling: !dragging, done: checked, rejected, locked }"
       @animationend="rejected = false"
       :style="offset ? { transform: `translateX(${offset}px)` } : undefined"
       @pointerdown="onPointerDown"
@@ -44,7 +44,8 @@
             :class="{ complete: checklistDone === checklistTotal }"
             :aria-label="t('todo.checklist.progress', { done: checklistDone, total: checklistTotal })"
           >
-            <Boxes v-if="isCount" :size="15" aria-hidden="true" />
+            <Lock v-if="locked" :size="15" aria-hidden="true" />
+            <Boxes v-else-if="isCount" :size="15" aria-hidden="true" />
             <ListChecks v-else :size="15" aria-hidden="true" />
             {{ checklistDone }}/{{ checklistTotal }}
           </span>
@@ -60,7 +61,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { Boxes, Check, ListChecks, Repeat, Trash2 } from "lucide-vue-next";
+import { Boxes, Check, ListChecks, Lock, Repeat, Trash2 } from "lucide-vue-next";
 import TodoFlame from "./TodoFlame.vue";
 import { taskTitle, type TodoTask } from "@/lib/todoApi";
 import { useLocale } from "@/lib/useLocale";
@@ -68,6 +69,7 @@ import { useLocale } from "@/lib/useLocale";
 const props = defineProps<{ task: TodoTask; dateLabel?: string; overdue?: boolean }>();
 // A "count the stock" card shows how far the count has got; any other task, its checklist.
 const isCount = computed(() => props.task.stock?.kind === "count");
+const locked = computed(() => !!props.task.stock?.locked);
 const checklistTotal = computed(() => (isCount.value ? (props.task.stock?.total ?? 0) : (props.task.checklist?.length ?? 0)));
 const checklistDone = computed(() =>
   isCount.value ? (props.task.stock?.done ?? 0) : (props.task.checklist?.filter((i) => i.done).length ?? 0),
@@ -272,6 +274,10 @@ function suppressClickAfterDrag(event: MouseEvent) {
 
 .todo-card.settling {
   transition: transform 260ms var(--ease-emphasized);
+}
+
+.todo-card.locked {
+  opacity: 0.6;
 }
 
 .todo-card.rejected {
