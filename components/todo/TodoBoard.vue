@@ -238,6 +238,7 @@ import {
   TodoApiError,
   updateRecurring,
   updateTask,
+  type Location,
   type RecurringInput,
   type RecurringTask,
   type TaskInput,
@@ -658,16 +659,14 @@ async function toggleChecklistItem(index: number, done: boolean) {
 }
 // The count is done and the server has written the "to prepare" list: the count card
 // flies into the drawer, and the list shows up on the board.
-async function onStockFinished(_location: unknown, prepare: number | null) {
+async function onStockFinished(location: Location, prepare: number) {
   const card = stockCountTask.value
     ? root.value?.querySelector<HTMLElement>(`[data-task-id="${stockCountTask.value.id}"] .todo-card`)
     : null;
   stockCountOpen.value = false;
   await sleep(320); // lets the sheet slide away first
   if (card?.isConnected) flyToDrawer(card);
-  // The makeline is done: the fridge card is open now. The fridge is the last step.
-  if (prepare === null) showSnackbar(t("todo.stock.makelineDone"));
-  else showSnackbar(prepare ? t("todo.stock.finished", { n: prepare }) : t("todo.stock.finishedNone"));
+  showSnackbar(prepare ? t(`todo.stock.finished.${location}`, { n: prepare }) : t(`todo.stock.finishedNone.${location}`));
   await load();
 }
 

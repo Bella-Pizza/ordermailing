@@ -4,10 +4,8 @@
 // Each product has an ideal quantity per weekday in two places: the back storage
 // ("chambre froide") and the little service fridge in front ("makeline"). The day
 // before an open day, both places are counted. Each place is topped up to its own
-// ideal. What has to be prepared is
-//   todo = idealStock - makelineStock - fridgeStock
-// where idealStock is the two ideals added together, so a surplus in one place makes up
-// for a shortage in the other.
+// ideal and has its own list: what the makeline is missing is prepared for the makeline,
+// what the cold room is missing for the cold room. They are never added together.
 
 export type Location = "chambre" | "makeline";
 export const LOCATIONS: readonly Location[] = ["chambre", "makeline"];
@@ -78,8 +76,6 @@ export type StockLine = {
   /** null: nothing to count in that place on this weekday */
   chambre: LocationLine | null;
   makeline: LocationLine | null;
-  /** idealStock - makelineStock - fridgeStock, counting only the places counted so far (never below 0) */
-  toPrepare: number;
 };
 
 const byOrder = (a: StockItem, b: StockItem) => a.order - b.order || a.name.localeCompare(b.name);
@@ -96,11 +92,7 @@ export function stockLines(items: StockItem[], counts: StockCounts, weekday: num
     const chambre = line("chambre");
     const makeline = line("makeline");
     if (!chambre && !makeline) return [];
-    const short = LOCATIONS.reduce((sum, location) => {
-      const entry = location === "chambre" ? chambre : makeline;
-      return entry && entry.counted !== null ? sum + entry.ideal - entry.counted : sum;
-    }, 0);
-    return [{ item, chambre, makeline, toPrepare: Math.max(0, short) }];
+    return [{ item, chambre, makeline }];
   });
 }
 
@@ -124,25 +116,16 @@ export const COUNT_ORDER: readonly Location[] = ["makeline", "chambre"];
 
 export type PrepEntry = {
   item: StockItem;
+  /** How much is missing in that place */
   qty: number;
-  /** Where the missing quantity is missing: only the places that are short */
-  parts: Partial<Record<Location, number>>;
 };
 
-export function prepList(lines: StockLine[]): PrepEntry[] {
-  return lines
-    .filter((line) => line.toPrepare > 0)
-    .map((line) => {
-      // Where it goes: the makeline is topped up first, then the fridge, never more than the total.
-      const parts: Partial<Record<Location, number>> = {};
-      let left = line.toPrepare;
-      for (const location of ["makeline", "chambre"] as const) {
-        const share = Math.min(line[location]?.missing ?? 0, left);
-        if (share) parts[location] = share;
-        left -= share;
-      }
-      return { item: line.item, qty: line.toPrepare, parts };
-    });
+/** What to prepare for ONE place: every product counted there that is under its ideal. */
+export function prepList(lines: StockLine[], location: Location): PrepEntry[] {
+  return lines.flatMap((line) => {
+    const missing = line[location]?.missing;
+    return missing ? [{ item: line.item, qty: missing }] : [];
+  });
 }
 
 // ─── Showing and typing quantities ────────────────────────────────────────────

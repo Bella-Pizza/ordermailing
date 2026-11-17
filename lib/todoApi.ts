@@ -26,7 +26,7 @@ export type TodoTask = {
    */
   stock?: {
     kind: "count" | "prep";
-    /** On a count card: the place it counts. The fridge ("chambre") card is locked until the makeline is done. */
+    /** The place a count card counts, or a prep list is for. The fridge ("chambre") card is locked until the makeline is done. */
     location?: Location;
     targetDate: string;
     done?: number;
@@ -173,9 +173,9 @@ export const setStockCount = (
     body: { itemId, location, value },
   });
 
-/** Finishes one place. The makeline unlocks the fridge (prepare is null); the fridge writes the "to prepare" list. */
+/** Finishes one place: writes that place's "to prepare" list. The makeline also unlocks the fridge. */
 export const finishStockCount = (storeId: string, token: string, date: string, location: Location) =>
-  request<{ location: Location; prepare: number | null }>(`/stores/${storeId}/stock/counts/${date}/finish`, {
+  request<{ location: Location; prepare: number }>(`/stores/${storeId}/stock/counts/${date}/finish`, {
     method: "POST",
     token,
     body: { location },
@@ -270,7 +270,11 @@ export function taskTitle(
 ): string {
   if (!task.stock) return task.title;
   const day = weekdayName(weekdayOf(task.stock.targetDate), locale);
-  if (task.stock.kind === "prep") return t("todo.stock.prepTitle", { day });
+  if (task.stock.kind === "prep") {
+    // A prep list made before the places were split has no place: it keeps the plain title.
+    const key = task.stock.location ? `todo.stock.prepTitle.${task.stock.location}` : "todo.stock.prepTitle";
+    return t(key, { day });
+  }
   return t(task.stock.location === "chambre" ? "todo.stock.countTitle.chambre" : "todo.stock.countTitle.makeline", { day });
 }
 

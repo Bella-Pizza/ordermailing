@@ -37,8 +37,8 @@ import {
 // changes are field-level so two people editing different cells never overwrite each
 // other. The day before every open day a "count the stock" card appears on the board;
 // that is two cards in a row: "fill and count the makeline" first, and only once that is
-// finished the "fill and count the fridge" card unlocks. When the fridge is counted too,
-// what's missing (ideal - makeline - fridge) becomes a "to prepare" checklist.
+// finished the "fill and count the fridge" card unlocks. Each place gets its own "to
+// prepare" checklist (ideal - counted, for that place only) the moment it is counted.
 
 const MAX_NAME = 60;
 const MAX_ITEMS = 150;
@@ -53,7 +53,8 @@ const countCardId = (target: string, location: Location = "makeline") =>
   location === "makeline" ? `stockcount_${target}` : `stockfridge_${target}`;
 /** Bumped when the cards change shape, so the ones still waiting are rebuilt once. */
 const CARDS_VERSION = 2;
-const prepTaskId = (target: string) => `stockprep_${target}`;
+const prepTaskId = (target: string, location: Location) =>
+  location === "makeline" ? `stockprep_${target}` : `stockprepfridge_${target}`;
 
 type RawItem = { name: string; order?: number; chambre?: Record<string, number>; makeline?: Record<string, number> };
 
@@ -244,8 +245,8 @@ stockRouter.patch("/counts/:date", async (c) => {
   return c.json({ ok: true });
 });
 
-// POST /counts/:date/finish { location } — one place is counted. The makeline finishing
-// unlocks the fridge card; the fridge finishing writes the "to prepare" list for that day.
+// POST /counts/:date/finish { location } — one place is counted: its "to prepare" list is
+// written for that day. Finishing the makeline also unlocks the fridge card.
 stockRouter.post("/counts/:date/finish", async (c) => {
   const storeId = storeIdParam(c);
   const date = targetDateParam(c);
@@ -258,23 +259,13 @@ stockRouter.post("/counts/:date/finish", async (c) => {
   const mine = countProgress(lines, place);
   if (!mine.total) throw new HTTPException(409, { message: "Nothing to count for that day" });
   if (mine.counted < mine.total) return c.json({ error: "incomplete", remaining: mine.total - mine.counted }, 409);
-
-  const now = new Date().toISOString();
-  const completeCard = async () => {
-    const card = tasksOf(storeId).doc(countCardId(date, place));
-    const cardData = (await card.get()).data();
-    if (cardData && cardData.completedAt === null) await card.update({ completedAt: now });
-  };
-
-  if (place === "makeline") {
-    await stockCountsOf(storeId).doc(date).set({ targetDate: date, makelineFinishedAt: now }, { merge: true });
-    await completeCard();
-    return c.json({ location: place, prepare: null });
+  if (place === "chambre" && !isMakelineFinished(countSnap.data())) {
+    throw new HTTPException(409, { message: "Finish the makeline first" });
   }
 
-  if (!isMakelineFinished(countSnap.data())) throw new HTTPException(409, { message: "Finish the makeline first" });
-  const prep = prepList(lines);
-  const prepRef = tasksOf(storeId).doc(prepTaskId(date));
+  const prep = prepList(lines, place);
+  const now = new Date().toISOString();
+  const prepRef = tasksOf(storeId).doc(prepTaskId(date, place));
   const existing = await prepRef.get();
 
   if (existing.exists && existing.data()!.completedAt) {
@@ -284,9 +275,9 @@ stockRouter.post("/counts/:date/finish", async (c) => {
   } else {
     // A recount keeps what was already ticked off, by product.
     const ticked = new Set(((existing.data()?.checklist ?? []) as { name: string; done: boolean }[]).filter((i) => i.done).map((i) => i.name));
-    const checklist = prep.map((entry) => ({ name: entry.item.name, qty: entry.qty, done: ticked.has(entry.item.name), parts: entry.parts }));
+    const checklist = prep.map((entry) => ({ name: entry.item.name, qty: entry.qty, done: ticked.has(entry.item.name) }));
     if (existing.exists) {
-      await prepRef.update({ checklist });
+      await prepRef.update({ checklist, stock: { kind: "prep", location: place, targetDate: date } });
     } else {
       const category = await useCategory(storeId, STOCK_CATEGORY);
       await prepRef.create({
@@ -297,7 +288,7 @@ stockRouter.post("/counts/:date/finish", async (c) => {
         categoryName: category.name,
         categoryHue: category.hue,
         checklist,
-        stock: { kind: "prep", targetDate: date },
+        stock: { kind: "prep", location: place, targetDate: date },
         completedAt: null,
         createdAt: now,
       });
@@ -305,8 +296,13 @@ stockRouter.post("/counts/:date/finish", async (c) => {
     }
   }
 
-  await stockCountsOf(storeId).doc(date).set({ targetDate: date, finishedAt: now }, { merge: true });
-  await completeCard();
+  await stockCountsOf(storeId)
+    .doc(date)
+    .set({ targetDate: date, [place === "makeline" ? "makelineFinishedAt" : "finishedAt"]: now }, { merge: true });
+  const card = tasksOf(storeId).doc(countCardId(date, place));
+  const cardData = (await card.get()).data();
+  if (cardData && cardData.completedAt === null) await card.update({ completedAt: now });
+
   return c.json({ location: place, prepare: prep.length });
 });
 

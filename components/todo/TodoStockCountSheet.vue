@@ -78,7 +78,7 @@ import { countProgress, stockLines, weekdayOfIso, type Location } from "@/lib/st
 import { useLocale } from "@/lib/useLocale";
 
 const props = defineProps<{ open: boolean; task: TodoTask | null; storeId: string; token: string }>();
-const emit = defineEmits<{ close: []; finished: [location: Location, prepare: number | null]; error: [err: unknown] }>();
+const emit = defineEmits<{ close: []; finished: [location: Location, prepare: number]; error: [err: unknown] }>();
 const { t, locale } = useLocale();
 
 const SAVE_DELAY_MS = 300;
