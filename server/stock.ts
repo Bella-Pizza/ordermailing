@@ -36,9 +36,11 @@ import {
 // back storage and the service fridge) lives in ONE document, stock/config, whose
 // changes are field-level so two people editing different cells never overwrite each
 // other. The day before every open day a "count the stock" card appears on the board;
-// that is two cards in a row: "fill and count the makeline" first, and only once that is
-// finished the "fill and count the fridge" card unlocks. Each place gets its own "to
-// prepare" checklist (ideal - counted, for that place only) the moment it is counted.
+// that is two count cards in a row: "count the makeline" first, and only once that is
+// finished "count the cold room" unlocks. Each place then gets its own checklist (ideal -
+// counted, for that place only) the moment it is counted:
+//   - the makeline: "Fill up Makeline", due the SAME day, since it is filled right away;
+//   - the cold room: "Prepare and fill", due the next open day.
 
 const MAX_NAME = 60;
 const MAX_ITEMS = 150;
@@ -266,7 +268,10 @@ stockRouter.post("/counts/:date/finish", async (c) => {
   const prep = prepList(lines, place);
   const now = new Date().toISOString();
   const prepRef = tasksOf(storeId).doc(prepTaskId(date, place));
-  const existing = await prepRef.get();
+  const [existing, cardSnap] = await Promise.all([prepRef.get(), tasksOf(storeId).doc(countCardId(date, place)).get()]);
+  // The makeline is filled the day it is counted (the day its count card is due); the cold
+  // room's list is for the open day itself.
+  const dueDate = place === "makeline" ? ((cardSnap.data()?.dueDate as string | undefined) ?? addDaysIso(date, -1)) : date;
 
   if (existing.exists && existing.data()!.completedAt) {
     // Already prepared and ticked off: a recount doesn't reopen finished work.
@@ -282,7 +287,7 @@ stockRouter.post("/counts/:date/finish", async (c) => {
       const category = await useCategory(storeId, STOCK_CATEGORY);
       await prepRef.create({
         title: "Stock prep",
-        dueDate: date,
+        dueDate,
         importance: 3,
         categoryId: category.id,
         categoryName: category.name,
@@ -299,9 +304,7 @@ stockRouter.post("/counts/:date/finish", async (c) => {
   await stockCountsOf(storeId)
     .doc(date)
     .set({ targetDate: date, [place === "makeline" ? "makelineFinishedAt" : "finishedAt"]: now }, { merge: true });
-  const card = tasksOf(storeId).doc(countCardId(date, place));
-  const cardData = (await card.get()).data();
-  if (cardData && cardData.completedAt === null) await card.update({ completedAt: now });
+  if (cardSnap.exists && cardSnap.data()!.completedAt === null) await cardSnap.ref.update({ completedAt: now });
 
   return c.json({ location: place, prepare: prep.length });
 });

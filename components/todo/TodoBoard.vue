@@ -54,7 +54,7 @@
               v-for="section in sections"
               :key="section.key"
               class="section"
-              :class="[`section-${section.key}`]"
+              :class="[`section-${section.kind}`]"
               :aria-labelledby="`todo-section-${section.key}`"
             >
               <div class="section-head">
@@ -380,6 +380,13 @@ const longDate = (iso: string) =>
 const shortDate = (iso: string) =>
   new Intl.DateTimeFormat(locale.value, { weekday: "short", day: "numeric", month: "short" }).format(parseDay(iso));
 
+const dayName = (iso: string) => {
+  const name = new Intl.DateTimeFormat(locale.value, { weekday: "long" }).format(parseDay(iso));
+  return name.charAt(0).toLocaleUpperCase(locale.value) + name.slice(1);
+};
+const dayAndMonth = (iso: string) =>
+  new Intl.DateTimeFormat(locale.value, { day: "numeric", month: "long" }).format(parseDay(iso));
+
 const todayLong = computed(() => longDate(today.value));
 
 const byPriority = (a: TodoTask, b: TodoTask) =>
@@ -392,13 +399,16 @@ const sections = computed(() => {
 
   const overdue = inRange((due) => due < today.value).sort(byDateThenPriority);
   const later = inRange((due) => due > tomorrow).sort(byDateThenPriority);
+  // Beyond tomorrow, each day gets its own section named after the day itself.
+  const laterDays = [...new Set(later.map((task) => task.dueDate))];
 
   return [
     ...(overdue.length
-      ? [{ key: "overdue", title: t("todo.section.overdue"), subtitle: "", tasks: overdue, showDates: true }]
+      ? [{ key: "overdue", kind: "overdue", title: t("todo.section.overdue"), subtitle: "", tasks: overdue, showDates: true }]
       : []),
     {
       key: "today",
+      kind: "today",
       title: t("todo.section.today"),
       subtitle: longDate(today.value),
       tasks: inRange((due) => due === today.value).sort(byPriority),
@@ -406,14 +416,20 @@ const sections = computed(() => {
     },
     {
       key: "tomorrow",
+      kind: "tomorrow",
       title: t("todo.section.tomorrow"),
       subtitle: longDate(tomorrow),
       tasks: inRange((due) => due === tomorrow).sort(byPriority),
       showDates: false,
     },
-    ...(later.length
-      ? [{ key: "later", title: t("todo.section.later"), subtitle: "", tasks: later, showDates: true }]
-      : []),
+    ...laterDays.map((day) => ({
+      key: `later-${day}`,
+      kind: "later",
+      title: dayName(day),
+      subtitle: dayAndMonth(day),
+      tasks: later.filter((task) => task.dueDate === day),
+      showDates: false,
+    })),
   ];
 });
 

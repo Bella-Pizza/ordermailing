@@ -271,7 +271,8 @@ export function taskTitle(
   if (!task.stock) return task.title;
   const day = weekdayName(weekdayOf(task.stock.targetDate), locale);
   if (task.stock.kind === "prep") {
-    // A prep list made before the places were split has no place: it keeps the plain title.
+    // A list made before the places were split has no place: it keeps the plain title.
+    // The makeline's is filled on the day it is counted, so it needs no day in its name.
     const key = task.stock.location ? `todo.stock.prepTitle.${task.stock.location}` : "todo.stock.prepTitle";
     return t(key, { day });
   }
