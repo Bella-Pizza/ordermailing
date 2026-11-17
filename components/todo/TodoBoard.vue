@@ -75,7 +75,6 @@
                   @complete="(card, swiped) => completeTask(task, card, swiped)"
                   @blocked="(remaining) => showSnackbar(t('todo.checklist.notDone', { n: remaining }))"
                   @delete="removeTask(task)"
-                  @force-delete="forceRemoveTask(task)"
                   @edit="openEdit(task)"
                   @swiped="dismissSwipeHint"
                 />
@@ -566,31 +565,6 @@ function flushDeletes() {
   for (const [taskId, timer] of [...pendingDeletes]) {
     clearTimeout(timer);
     sendDelete(taskId, true).catch(() => undefined);
-  }
-}
-
-// Held down for 3 seconds: gone at once, with no Undo, and nothing that would follow it
-// is made. A makeline count card takes its locked fridge card with it.
-async function forceRemoveTask(task: TodoTask) {
-  const gone = (item: TodoTask) =>
-    item.id === task.id ||
-    (task.stock?.kind === "count" &&
-      task.stock.location !== "chambre" &&
-      item.stock?.kind === "count" &&
-      item.stock.location === "chambre" &&
-      item.stock.targetDate === task.stock.targetDate);
-  const wasCompleted = !!task.completedAt;
-  const before = wasCompleted ? completed.value : open.value;
-  (wasCompleted ? completed : open).value = before.filter((item) => !gone(item));
-  localChanges++;
-  clearTimeout(pendingDeletes.get(task.id));
-  pendingDeletes.delete(task.id);
-  showSnackbar(t("todo.board.taskForceRemoved"));
-  try {
-    await write(() => deleteTask(props.store.id, props.token, task.id, false, true));
-  } catch (err) {
-    (wasCompleted ? completed : open).value = before;
-    failed(err);
   }
 }
 

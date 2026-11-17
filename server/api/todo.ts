@@ -20,7 +20,7 @@ import {
   tasksOf,
   useCategory,
 } from "../todo-shared";
-import { ensureStockCards, loadStockConfig, removeFollowUps, stockRouter, withStockProgress } from "../stock";
+import { ensureStockCards, loadStockConfig, stockRouter, withStockProgress } from "../stock";
 
 // Public router: there is no Firebase login here. Everything except the store list
 // and PIN check requires the per-store token that a correct PIN hands out.
@@ -496,16 +496,11 @@ todo.patch("/stores/:storeId/tasks/:taskId", async (c) => {
 });
 
 // ─── DELETE /api/todo/stores/:storeId/tasks/:taskId ───────────────────────────
-// With ?force=1 (a card held down for 3 seconds) the task goes for good and nothing that
-// would follow it is made. A deleted recurring copy or stock card is never made again
-// anyway: their IDs are fixed and each day is only generated once.
 todo.delete("/stores/:storeId/tasks/:taskId", async (c) => {
   const storeId = storeIdParam(c);
   const taskId = c.req.param("taskId");
   if (!ID_PATTERN.test(taskId)) throw new HTTPException(404, { message: "Task not found" });
-  const ref = tasksOf(storeId).doc(taskId);
-  if (c.req.query("force") === "1") await removeFollowUps(storeId, (await ref.get()).data());
-  await ref.delete();
+  await tasksOf(storeId).doc(taskId).delete();
   return c.json({ ok: true });
 });
 
