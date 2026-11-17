@@ -9,8 +9,9 @@
     <article
       ref="card"
       class="todo-card"
-      :class="{ settling: !dragging, done: checked, rejected, locked }"
+      :class="{ settling: !dragging, done: checked, rejected, locked, holding }"
       @animationend="rejected = false"
+      @contextmenu.prevent
       :style="offset ? { transform: `translateX(${offset}px)` } : undefined"
       @pointerdown="onPointerDown"
       @pointermove="onPointerMove"
@@ -18,6 +19,8 @@
       @pointercancel="cancelDrag"
       @click.capture="suppressClickAfterDrag"
     >
+      <span class="hold-fill" aria-hidden="true" />
+
       <button
         class="todo-check state-layer"
         type="button"
@@ -60,7 +63,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onBeforeUnmount, ref } from "vue";
 import { Boxes, Check, ListChecks, Lock, Repeat, Trash2 } from "lucide-vue-next";
 import TodoFlame from "./TodoFlame.vue";
 import { taskTitle, type TodoTask } from "@/lib/todoApi";
@@ -81,11 +84,16 @@ const emit = defineEmits<{
   delete: [];
   edit: [];
   swiped: [];
+  /** Held down for 3 seconds: remove it for good, with nothing following it */
+  forceDelete: [];
 }>();
 const { t, locale } = useLocale();
 const title = computed(() => taskTitle(props.task, t, locale.value));
 
 const INTENT_PX = 10;
+const HOLD_MS = 3000;
+// The red fill only starts after a moment, so an ordinary tap never flashes it.
+const HOLD_SHOW_MS = 400;
 const COMMIT_RATIO = 0.35;
 const COMMIT_MAX_PX = 140;
 
@@ -122,12 +130,37 @@ function complete() {
 
 const commitDistance = () => Math.min(card.value!.offsetWidth * COMMIT_RATIO, COMMIT_MAX_PX);
 
+// ─── Holding down ─────────────────────────────────────────────────────────────
+const holding = ref(false);
+let showTimer: ReturnType<typeof setTimeout> | undefined;
+let fireTimer: ReturnType<typeof setTimeout> | undefined;
+
+function startHold() {
+  cancelHold();
+  showTimer = setTimeout(() => (holding.value = true), HOLD_SHOW_MS);
+  fireTimer = setTimeout(() => {
+    cancelHold();
+    swipedThisPress = true; // the click that follows letting go must not open the card
+    navigator.vibrate?.([20, 40, 80]);
+    emit("forceDelete");
+  }, HOLD_MS);
+}
+
+function cancelHold() {
+  clearTimeout(showTimer);
+  clearTimeout(fireTimer);
+  holding.value = false;
+}
+
+onBeforeUnmount(cancelHold);
+
 function onPointerDown(event: PointerEvent) {
   swipedThisPress = false;
   if (event.button !== 0 || (event.target as HTMLElement).closest("[data-no-swipe]")) return;
   pointerId = event.pointerId;
   startX = event.clientX;
   startY = event.clientY;
+  startHold();
 }
 
 function onPointerMove(event: PointerEvent) {
@@ -137,6 +170,7 @@ function onPointerMove(event: PointerEvent) {
 
   if (!dragging.value) {
     if (Math.abs(dx) < INTENT_PX && Math.abs(dy) < INTENT_PX) return;
+    cancelHold(); // moving the finger is a swipe or a scroll, not a hold
     // Mostly vertical means the user is scrolling the page: leave it alone.
     if (Math.abs(dy) >= Math.abs(dx)) {
       pointerId = null;
@@ -156,6 +190,7 @@ function onPointerMove(event: PointerEvent) {
 function onPointerUp(event: PointerEvent) {
   if (event.pointerId !== pointerId) return;
   pointerId = null;
+  cancelHold();
   if (!dragging.value) return;
   dragging.value = false;
 
@@ -183,6 +218,7 @@ function onPointerUp(event: PointerEvent) {
 }
 
 function cancelDrag() {
+  cancelHold();
   pointerId = null;
   dragging.value = false;
   armed.value = false;
@@ -270,6 +306,26 @@ function suppressClickAfterDrag(event: MouseEvent) {
   color: var(--on-surface);
   touch-action: pan-y;
   user-select: none;
+  -webkit-touch-callout: none;
+  isolation: isolate;
+}
+
+/* Fills red while the card is held down; at the end it is removed */
+.hold-fill {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--error-container);
+  pointer-events: none;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: none;
+}
+
+.todo-card.holding .hold-fill {
+  transform: scaleX(1);
+  transition: transform 2600ms linear;
 }
 
 .todo-card.settling {

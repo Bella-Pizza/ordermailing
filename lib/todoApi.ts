@@ -200,8 +200,13 @@ export const updateTask = (
   patch: Partial<TaskInput> & { completed?: boolean; checkItem?: { index: number; done: boolean } },
 ) => request<TodoTask>(`/stores/${storeId}/tasks/${taskId}`, { method: "PATCH", token, body: patch });
 
-export const deleteTask = (storeId: string, token: string, taskId: string, keepalive = false) =>
-  request<{ ok: true }>(`/stores/${storeId}/tasks/${taskId}`, { method: "DELETE", token, keepalive });
+/** `force`: removed for good, and nothing that would follow it is made (a held-down card). */
+export const deleteTask = (storeId: string, token: string, taskId: string, keepalive = false, force = false) =>
+  request<{ ok: true }>(`/stores/${storeId}/tasks/${taskId}${force ? "?force=1" : ""}`, {
+    method: "DELETE",
+    token,
+    keepalive,
+  });
 
 // ─── Remembered access ────────────────────────────────────────────────────────
 // Storage can throw in private windows. The page still works then; the browser

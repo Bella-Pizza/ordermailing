@@ -381,6 +381,19 @@ async function removeUpcomingCountCards(storeId: string, today: string) {
 }
 
 /**
+ * A count card was removed on purpose (held down for 3 seconds): nothing that would
+ * follow it is made either. The makeline card is the start of the chain, so its locked
+ * fridge card goes with it. Counts already saved are left alone.
+ */
+export async function removeFollowUps(storeId: string, task: Record<string, any> | undefined) {
+  const stock = task?.stock;
+  if (stock?.kind !== "count" || stock.location === "chambre") return;
+  const fridge = tasksOf(storeId).doc(countCardId(stock.targetDate, "chambre"));
+  const data = (await fridge.get()).data();
+  if (data && data.completedAt === null) await fridge.delete();
+}
+
+/**
  * Adds "counted / total" to each open count card, worked out from what's been counted so
  * far, and says whether a fridge card is still locked behind the makeline.
  */
